@@ -1,0 +1,7 @@
+{
+  "event": "takt_alert",
+  "message": "Takt time finalizado - Etapa 1",
+  "id": "fabrica-celula",
+  "timestamp": 1698412800.5,
+  "takt_count": 1
+}
