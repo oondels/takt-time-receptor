@@ -48,6 +48,11 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   Serial.print("Command: ");
   Serial.println(mqttClient.comandoRecebido.takt_count);
 
+  if (mqttClient.comandoRecebido.message == "test_takt_system") {
+    sinalizadorController.sequenciaCompleta();
+    return;
+  }
+
   // Marcar que há um novo comando para processar
   mqttClient.newCommand = true;
 
