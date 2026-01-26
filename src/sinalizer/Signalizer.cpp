@@ -1,6 +1,8 @@
 #include "Signalizer.h"
 #include <FastLED.h>
 
+CRGB gLeds[NUM_LEDS];
+
 Sinalizer::Sinalizer(const char *nome, uint8_t pino, TipoSinalizador tipo, uint16_t freq)
     : nome(nome), pin(pino), tipo(tipo), frequencia(freq), active(false), startTime(0), lastMode(EstadoPino::DESLIGADO), activationDuration(5000)
 {
@@ -13,7 +15,7 @@ void Sinalizer::begin()
     switch (pin)
     {
     case 4:
-      FastLED.addLeds<LED_TYPE, 4, COLOR_ORDER>(leds, NUM_LEDS).setCorrection(TypicalLEDStrip);
+      FastLED.addLeds<LED_TYPE, 4, COLOR_ORDER>(gLeds, NUM_LEDS).setCorrection(TypicalLEDStrip);
       break;
     default:
       Serial.print("ERRO: GPIO nao suportado para FastLED via template: ");
@@ -36,11 +38,11 @@ void Sinalizer::begin()
   Serial.print(tipo == TipoSinalizador::LED ? "LED" : "BUZZER");
 }
 
-void Sinalizer::activate(CRGB color = CRGB::White)
+void Sinalizer::activate(CRGB color)
 {
   if (this->getTipo() == TipoSinalizador::LED)
   {
-    fill_solid(leds, NUM_LEDS, color);
+    fill_solid(gLeds, NUM_LEDS, color);
     FastLED.show();
     active = true;
     startTime = millis();
@@ -62,7 +64,7 @@ void Sinalizer::deactivate()
 {
   if (this->getTipo() == TipoSinalizador::LED)
   {
-    fill_solid(leds, NUM_LEDS, CRGB::Black);
+    fill_solid(gLeds, NUM_LEDS, CRGB::Black);
     FastLED.show();
     active = false;
 

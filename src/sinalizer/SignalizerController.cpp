@@ -19,17 +19,11 @@ void SignalizerController::begin()
 // TODO: Corrigir logica de validação de nível
 bool SignalizerController::validarDependencias(NivelSinalizacao novoNivel)
 {
-  // LED2 só pode ser ligado se LED1 estiver ligado
-  if (novoNivel >= NivelSinalizacao::NIVEL_2 && !leds->isActive())
-  {
-    Serial.println("AVISO: LED2 requer LED1 ligado.");
-    return false;
-  }
+  (void)novoNivel;
 
-  // LED3 só pode ser ligado se LED1 e LED2 estiverem ligados
-  if (novoNivel >= NivelSinalizacao::NIVEL_3 && (!leds->isActive()))
+  if (leds == nullptr || buzzer == nullptr)
   {
-    Serial.println("AVISO: LED3 requer LED1 e LED2 ligados.");
+    Serial.println("ERRO: SignalizerController com dependencias nulas.");
     return false;
   }
 
@@ -58,7 +52,7 @@ void SignalizerController::setNivel(NivelSinalizacao nivel)
 
     case NivelSinalizacao::NIVEL_3:
       leds->activate(CRGB::Red);
-      buzzer->activate(CRGB::Black);
+      buzzer->activate();
       lastTaktTime = millis(); // Registrar o tempo de takt time
       break;
     }
