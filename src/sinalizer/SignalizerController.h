@@ -14,9 +14,7 @@ enum class NivelSinalizacao : uint8_t
 class SignalizerController
 {
 private:
-    Sinalizer* led1;
-    Sinalizer* led2;
-    Sinalizer* led3;
+    Sinalizer* leds;
     Sinalizer* buzzer;
     
     NivelSinalizacao nivelAtual;
@@ -25,7 +23,7 @@ private:
     bool validarDependencias(NivelSinalizacao novoNivel);
 
 public:
-    SignalizerController(Sinalizer* led1, Sinalizer* led2, Sinalizer* led3, Sinalizer* buzzer);
+    SignalizerController(Sinalizer* leds, Sinalizer* buzzer);
     
     void begin();
     void loop();
