@@ -1,25 +1,24 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
+
 #include "wifi/WifiClient.h"
 #include "mqtt/MQTTClient.h"
 #include "sinalizer/Signalizer.h"
 #include "sinalizer/SignalizerController.h"
 
 // Pinos
-constexpr int LED1 = 25;
-constexpr int LED2 = 26;
-constexpr int LED3 = 27;
+constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // Device
-const char *DEVICE_ID = "cost-2-2408";
+const char *DEVICE_ID = "cost-2-2508";
 
 // WiFi & MQTT
 const char *SSID = "DASS-CORP";
 const char *PASSWORD = "dass7425corp";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
-const char *MQTT_SERVER = "10.110.21.3";
+const char *MQTT_SERVER = "10.110.20.229";
 const int MQTT_PORT = 1883;
 String MQTT_TOPIC = String("takt/device/") + DEVICE_ID;
 const char *MQTT_USER = "dass";
@@ -27,12 +26,10 @@ const char *MQTT_PASS = "pHUWphISTl7r_Geis";
 MQTTClient mqttClient(MQTT_SERVER, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_TOPIC.c_str(), DEVICE_ID);
 
 // Sinalizadores
-Sinalizer led1("LED1", LED1, TipoSinalizador::LED);
-Sinalizer led2("LED2", LED2, TipoSinalizador::LED);
-Sinalizer led3("LED3", LED3, TipoSinalizador::LED);
+Sinalizer leds("LEDS", LEDS, TipoSinalizador::LED);
 Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000);
 
-SignalizerController sinalizadorController(&led1, &led2, &led3, &buzzer);
+SignalizerController sinalizadorController(&leds, &buzzer);
 
 // Callback para processar mensagens MQTT com JSON
 void onMqttMessage(char *topic, byte *payload, unsigned int length)
