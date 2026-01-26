@@ -6,7 +6,7 @@
 
 // LEDS's
 #define NUM_LEDS 10
-#define BRIGHTNESS 64
+#define BRIGHTNESS 255
 #define LED_TYPE WS2811
 #define COLOR_ORDER GRB
 
