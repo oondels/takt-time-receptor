@@ -14,8 +14,8 @@ constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // WiFi & MQTT
-const char *SSID = "DASS-CORP";
-const char *PASSWORD = "dass7425corp";
+const char *SSID = "DASS-IOT";
+const char *PASSWORD = "Dass0306IOT";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
@@ -57,6 +57,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   {
     DeviceConfig newConfig = deviceConfig;
     bool changed = false;
+    Serial.println("comando de configuração recebido");
 
     if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
     {
