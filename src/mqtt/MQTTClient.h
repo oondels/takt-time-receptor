@@ -19,16 +19,19 @@ class MQTTClient
   private:
     WiFiClient espClient;
     PubSubClient mqttClient;
-    const char* SERVER;
-    int PORT;
-    const char* USER;
-    const char* PASS;
-    const char* TOPIC;
+    String server;
+    int port;
+    String user;
+    String pass;
+    String topic;
+    String deviceId;
     unsigned long lastReconnectAttempt = 0;
     unsigned long lastHeartbeat = 0;
     String clientId;
     String statusTopic;
     String heartbeatTopic; 
+
+    void buildTopics();
 
     void (*messageCallback)(char* topic, byte* payload, unsigned int length);
     static void internalCallback(char* topic, byte* payload, unsigned int length);
@@ -36,9 +39,11 @@ class MQTTClient
 
   public:
     MQTTClient(const char* server, int port, const char* user, const char* pass, const char* topic, const char* deviceId);
+    void configure(const char* server, int port, const char* user, const char* pass, const char* topic, const char* deviceId);
     void begin();
     void loop();
     void reconnect();
+    void disconnect();
 
     void setCallback(void (*callback)(char* topic, byte*, unsigned int));
     bool isConnected();

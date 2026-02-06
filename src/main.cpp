@@ -1,8 +1,11 @@
 #include <WiFi.h>
 #include <ArduinoJson.h>
+#include <LittleFS.h>
 
 #include "wifi/WifiClient.h"
 #include "mqtt/MQTTClient.h"
+#include "config/DeviceConfig.h"
+#include "config/ConfigStorage.h"
 #include "sinalizer/Signalizer.h"
 #include "sinalizer/SignalizerController.h"
 
@@ -10,20 +13,20 @@
 constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
-// Device
-const char *DEVICE_ID = "cost-2-2508";
-
 // WiFi & MQTT
 const char *SSID = "DASS-CORP";
 const char *PASSWORD = "dass7425corp";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
-const char *MQTT_SERVER = "10.110.20.229";
-const int MQTT_PORT = 1883;
-String MQTT_TOPIC = String("takt/device/") + DEVICE_ID;
-const char *MQTT_USER = "dass";
-const char *MQTT_PASS = "pHUWphISTl7r_Geis";
-MQTTClient mqttClient(MQTT_SERVER, MQTT_PORT, MQTT_USER, MQTT_PASS, MQTT_TOPIC.c_str(), DEVICE_ID);
+DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
+String MQTT_TOPIC = buildMqttTopic(deviceConfig);
+MQTTClient mqttClient(
+  deviceConfig.mqttServer.c_str(),
+  deviceConfig.mqttPort,
+  deviceConfig.mqttUser.c_str(),
+  deviceConfig.mqttPass.c_str(),
+  MQTT_TOPIC.c_str(),
+  deviceConfig.deviceId.c_str());
 
 // Sinalizadores
 Sinalizer leds("LEDS", LEDS, TipoSinalizador::LED);
@@ -47,6 +50,36 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   Serial.println(mqttClient.comandoRecebido.id);
   Serial.print("Command: ");
   Serial.println(mqttClient.comandoRecebido.takt_count);
+
+  if (mqttClient.comandoRecebido.event == "device_config" ||
+      mqttClient.comandoRecebido.message == "device_config" ||
+      mqttClient.comandoRecebido.message == "update_config")
+  {
+    DeviceConfig newConfig = deviceConfig;
+    bool changed = false;
+
+    if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
+    {
+      if (saveConfig(newConfig))
+      {
+        deviceConfig = newConfig;
+        MQTT_TOPIC = buildMqttTopic(deviceConfig);
+        mqttClient.configure(
+            deviceConfig.mqttServer.c_str(),
+            deviceConfig.mqttPort,
+            deviceConfig.mqttUser.c_str(),
+            deviceConfig.mqttPass.c_str(),
+            MQTT_TOPIC.c_str(),
+            deviceConfig.deviceId.c_str());
+        mqttClient.begin();
+        mqttClient.disconnect();
+        Serial.println("Configuração atualizada e salva.");
+      }
+    }
+
+    Serial.println("==========================\n");
+    return;
+  }
 
   if (mqttClient.comandoRecebido.message == "test_takt_system") {
     sinalizadorController.sequenciaCompleta();
@@ -98,6 +131,31 @@ void setup()
 {
   Serial.begin(115200);
   Serial.println("\n=== Inicializando Takt Time Receptor ===");
+
+  if (!beginConfigStorage(true))
+  {
+    Serial.println("Falha ao iniciar LittleFS");
+  }
+
+  setDefaultConfig(deviceConfig);
+  if (loadConfig(deviceConfig))
+  {
+    Serial.println("Configuração carregada do LittleFS");
+  }
+  else
+  {
+    Serial.println("Sem configuração salva, usando defaults");
+    saveConfig(deviceConfig);
+  }
+
+  MQTT_TOPIC = buildMqttTopic(deviceConfig);
+  mqttClient.configure(
+      deviceConfig.mqttServer.c_str(),
+      deviceConfig.mqttPort,
+      deviceConfig.mqttUser.c_str(),
+      deviceConfig.mqttPass.c_str(),
+      MQTT_TOPIC.c_str(),
+      deviceConfig.deviceId.c_str());
 
   sinalizadorController.begin();
 
