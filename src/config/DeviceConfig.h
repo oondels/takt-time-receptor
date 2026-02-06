@@ -5,7 +5,7 @@
 constexpr const char *DEFAULT_DEVICE_ID = "takttike-default-id";
 ***REMOVED***
 ***REMOVED***
-***REMOVED***
+constexpr const char *DEFAULT_MQTT_SERVER = "10.110.20.172";
 constexpr int DEFAULT_MQTT_PORT = 1883;
 
 struct DeviceConfig

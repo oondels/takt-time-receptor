@@ -138,16 +138,10 @@ void setup()
     Serial.println("Falha ao iniciar LittleFS");
   }
 
+  // Sempre grava valores padrões na memória a cada compilação
   setDefaultConfig(deviceConfig);
-  if (loadConfig(deviceConfig))
-  {
-    Serial.println("Configuração carregada do LittleFS");
-  }
-  else
-  {
-    Serial.println("Sem configuração salva, usando defaults");
-    saveConfig(deviceConfig);
-  }
+  saveConfig(deviceConfig);
+  Serial.println("Configuração padrão gravada no LittleFS");
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);
   mqttClient.configure(
