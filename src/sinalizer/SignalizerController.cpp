@@ -1,16 +1,14 @@
 
 #include "SignalizerController.h"
 
-SignalizerController::SignalizerController(Sinalizer *led1, Sinalizer *led2, Sinalizer *led3, Sinalizer *buzzer)
-    : led1(led1), led2(led2), led3(led3), buzzer(buzzer), nivelAtual(NivelSinalizacao::DESLIGADO), lastTaktTime(0)
+SignalizerController::SignalizerController(Sinalizer *leds, Sinalizer *buzzer)
+    : leds(leds), buzzer(buzzer), nivelAtual(NivelSinalizacao::DESLIGADO), lastTaktTime(0)
 {
 }
 
 void SignalizerController::begin()
 {
-  led1->begin();
-  led2->begin();
-  led3->begin();
+  leds->begin();
   buzzer->begin();
 
   desligarTodos();
@@ -18,19 +16,14 @@ void SignalizerController::begin()
   Serial.println("SignalizerController inicializado");
 }
 
+// TODO: Corrigir logica de validação de nível
 bool SignalizerController::validarDependencias(NivelSinalizacao novoNivel)
 {
-  // LED2 só pode ser ligado se LED1 estiver ligado
-  if (novoNivel >= NivelSinalizacao::NIVEL_2 && !led1->isActive())
-  {
-    Serial.println("AVISO: LED2 requer LED1 ligado.");
-    return false;
-  }
+  (void)novoNivel;
 
-  // LED3 só pode ser ligado se LED1 e LED2 estiverem ligados
-  if (novoNivel >= NivelSinalizacao::NIVEL_3 && (!led1->isActive() || !led2->isActive()))
+  if (leds == nullptr || buzzer == nullptr)
   {
-    Serial.println("AVISO: LED3 requer LED1 e LED2 ligados.");
+    Serial.println("ERRO: SignalizerController com dependencias nulas.");
     return false;
   }
 
@@ -48,23 +41,17 @@ void SignalizerController::setNivel(NivelSinalizacao nivel)
       break;
 
     case NivelSinalizacao::NIVEL_1:
-      led1->activate();
-      led2->deactivate();
-      led3->deactivate();
+      leds->activate(CRGB::Blue);
       buzzer->deactivate();
       break;
 
     case NivelSinalizacao::NIVEL_2:
-      led1->activate();
-      led2->activate();
-      led3->deactivate();
+      leds->activate(CRGB::Yellow);
       buzzer->deactivate();
       break;
 
     case NivelSinalizacao::NIVEL_3:
-      led1->activate();
-      led2->activate();
-      led3->activate();
+      leds->activate(CRGB::Green);
       buzzer->activate();
       lastTaktTime = millis(); // Registrar o tempo de takt time
       break;
@@ -79,9 +66,7 @@ void SignalizerController::setNivel(NivelSinalizacao nivel)
 
 void SignalizerController::desligarTodos()
 {
-  led1->deactivate();
-  led2->deactivate();
-  led3->deactivate();
+  leds->deactivate();
   buzzer->deactivate();
   nivelAtual = NivelSinalizacao::DESLIGADO;
   lastTaktTime = 0;
