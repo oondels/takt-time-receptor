@@ -157,7 +157,8 @@ Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000, 5000);
 ### Tópico de Subscrição
 
 ```
-takt/device/{DEVICE_ID}
+takt.device.{DEVICE_ID}
+ex: takt.device.cost-3-3508
 ```
 
 ### Formato da Mensagem (JSON)
@@ -169,6 +170,17 @@ takt/device/{DEVICE_ID}
   "id": "string",
   "timestamp": 1234567890.0,
   "takt_count": 0
+}
+```
+
+Exemplo Teste de funcionalidade
+```json
+{
+  "event": "takt_alert",
+  "message": "test_takt_system",
+  "id": "3-3508",
+  "timestamp": 1698412800.5,
+  "takt_count": 1
 }
 ```
 
