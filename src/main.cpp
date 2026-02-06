@@ -14,8 +14,8 @@ constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // WiFi & MQTT
-const char *SSID = "DASS-IOT";
-const char *PASSWORD = "Dass0306IOT";
+const char *SSID = "DASS-CORP";
+const char *PASSWORD = "dass7425corp";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
@@ -138,16 +138,10 @@ void setup()
     Serial.println("Falha ao iniciar LittleFS");
   }
 
+  // Sempre grava valores padrões na memória a cada compilação
   setDefaultConfig(deviceConfig);
-  if (loadConfig(deviceConfig))
-  {
-    Serial.println("Configuração carregada do LittleFS");
-  }
-  else
-  {
-    Serial.println("Sem configuração salva, usando defaults");
-    saveConfig(deviceConfig);
-  }
+  saveConfig(deviceConfig);
+  Serial.println("Configuração padrão gravada no LittleFS");
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);
   mqttClient.configure(
