@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-constexpr const char *DEFAULT_DEVICE_ID = "cost-3-3608";
+constexpr const char *DEFAULT_DEVICE_ID = "cost-fab-cel";
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
