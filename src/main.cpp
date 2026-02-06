@@ -57,6 +57,7 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   {
     DeviceConfig newConfig = deviceConfig;
     bool changed = false;
+    Serial.println("comando de configuração recebido");
 
     if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
     {

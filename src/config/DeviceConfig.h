@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-constexpr const char *DEFAULT_DEVICE_ID = "cost-fab-cel";
+constexpr const char *DEFAULT_DEVICE_ID = "takttike-default-id";
 ***REMOVED***
 ***REMOVED***
 ***REMOVED***
