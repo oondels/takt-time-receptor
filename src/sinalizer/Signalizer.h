@@ -2,6 +2,15 @@
 #define SIGNALIZER_H
 
 #include <Arduino.h>
+#include <FastLED.h>
+
+// LEDS's
+#define NUM_LEDS 10
+#define BRIGHTNESS 255
+#define LED_TYPE WS2811
+#define COLOR_ORDER GRB
+
+extern CRGB gLeds[NUM_LEDS];
 
 enum class TipoSinalizador
 {
@@ -32,7 +41,7 @@ public:
   Sinalizer(const char* nome, uint8_t pino, TipoSinalizador tipo = TipoSinalizador::LED, uint16_t freq = 0);
 
   void begin();
-  void activate();
+  void activate(CRGB color = CRGB::White);
   void deactivate();
   bool isActive() const { return active; }
   TipoSinalizador getTipo() const { return tipo; }

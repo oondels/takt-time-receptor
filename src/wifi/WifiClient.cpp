@@ -27,6 +27,8 @@ bool WifiClient::checkConnection()
     Serial.println("\nWi-fi conectado");
     Serial.println("Endereço IP: ");
     Serial.println(WiFi.localIP());
+    Serial.println("Endereço MAC: ");
+    Serial.println(WiFi.macAddress());
     return true;
   }
   else
