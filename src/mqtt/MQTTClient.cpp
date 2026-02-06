@@ -6,16 +6,7 @@ MQTTClient *MQTTClient::instance = nullptr;
 MQTTClient::MQTTClient(const char *server, int port, const char *user, const char *pass, const char *topic, const char *deviceId)
     : mqttClient(espClient)
 {
-  SERVER = server;
-  PORT = port;
-  USER = user;
-  PASS = pass;
-  TOPIC = topic;
-  clientId = deviceId;
-
-  // tópicos de status e heartbeat
-  statusTopic = String("takt/device/") + clientId + "/status";
-  heartbeatTopic = String("takt/device/") + clientId + "/heartbeat";
+  configure(server, port, user, pass, topic, deviceId);
 
   // Configurar instância estática para callback
   instance = this;
@@ -24,11 +15,38 @@ MQTTClient::MQTTClient(const char *server, int port, const char *user, const cha
   comandoRecebido = {"", "", "", 0.0f, 0};
 }
 
+void MQTTClient::configure(const char *server, int port, const char *user, const char *pass, const char *topic, const char *deviceId)
+{
+  this->server = server != nullptr ? server : "";
+  this->port = port;
+  this->user = user != nullptr ? user : "";
+  this->pass = pass != nullptr ? pass : "";
+  this->deviceId = deviceId != nullptr ? deviceId : "";
+
+  if (topic != nullptr && String(topic).length() > 0)
+  {
+    this->topic = topic;
+  }
+  else
+  {
+    this->topic = String("takt/device/") + this->deviceId;
+  }
+
+  buildTopics();
+  mqttClient.setServer(this->server.c_str(), this->port);
+}
+
+void MQTTClient::buildTopics()
+{
+  statusTopic = String("takt/device/") + deviceId + "/status";
+  heartbeatTopic = String("takt/device/") + deviceId + "/heartbeat";
+}
+
 void MQTTClient::begin()
 {
   mqttClient.setClient(espClient);
-  mqttClient.setServer(SERVER, PORT);
-  clientId = "TAKT_DEVICE-" + clientId + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
+  mqttClient.setServer(server.c_str(), port);
+  clientId = "TAKT_DEVICE-" + deviceId + "-" + String((uint32_t)ESP.getEfuseMac(), HEX);
 
   mqttClient.setBufferSize(512);
 }
@@ -103,6 +121,14 @@ bool MQTTClient::isConnected()
   return mqttClient.connected();
 }
 
+void MQTTClient::disconnect()
+{
+  if (mqttClient.connected())
+  {
+    mqttClient.disconnect();
+  }
+}
+
 void MQTTClient::reconnect()
 {
   if (!mqttClient.connected())
@@ -113,8 +139,8 @@ void MQTTClient::reconnect()
     // Formato: connect(clientId, user, pass, willTopic, willQoS, willRetain, willMessage)
     bool connected = mqttClient.connect(
         clientId.c_str(),
-        USER,
-        PASS,
+      user.c_str(),
+      pass.c_str(),
         statusTopic.c_str(), // Will Topic
         1,                   // Will QoS
         true,                // Will Retain
@@ -129,9 +155,9 @@ void MQTTClient::reconnect()
       mqttClient.publish(statusTopic.c_str(), "online", true);
 
       // Inscrever no tópico de comandos
-      mqttClient.subscribe(TOPIC);
+      mqttClient.subscribe(topic.c_str());
       Serial.print("Inscrito no tópico: ");
-      Serial.println(TOPIC);
+      Serial.println(topic);
 
       publishHeartbeat();
       lastReconnectAttempt = 0;
