@@ -149,6 +149,7 @@ const char *DEVICE_ID = "seu-device-id";
 - As configurações de dispositivo são salvas em **LittleFS** (arquivo `/config.json`).
 - No boot, o dispositivo carrega o arquivo e aplica as configurações.
 - Atualizações podem ser feitas via MQTT, salvando automaticamente no LittleFS.
+- O `DEVICE_ID` padrão para configuração remota é **cost-fab-cel**.
 
 ### 3. Duração do Alarme
 
