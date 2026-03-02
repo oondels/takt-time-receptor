@@ -52,7 +52,7 @@ void Sinalizer::activate(CRGB color)
     return;
   }
 
-  digitalWrite(pin, HIGH);
+  digitalWrite(pin, LOW);
   active = true;
   startTime = millis();
 
@@ -73,7 +73,7 @@ void Sinalizer::deactivate()
     return;
   }
 
-  digitalWrite(pin, LOW);
+  digitalWrite(pin, HIGH);
 
   active = false;
 

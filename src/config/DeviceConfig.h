@@ -2,11 +2,12 @@
 
 #include <Arduino.h>
 
-constexpr const char *DEFAULT_DEVICE_ID = "takttike-default-id";
+constexpr const char *DEFAULT_DEVICE_ID = "cost-default-id";
 ***REMOVED***
 ***REMOVED***
-constexpr const char *DEFAULT_MQTT_SERVER = "10.110.20.172";
+***REMOVED***
 constexpr int DEFAULT_MQTT_PORT = 1883;
+constexpr int DEFAULT_TAKT_COUNT = 0;
 
 struct DeviceConfig
 {
@@ -15,6 +16,7 @@ struct DeviceConfig
   String mqttPass;
   String mqttServer;
   int mqttPort;
+  int taktCount;
 };
 
 void setDefaultConfig(DeviceConfig &cfg);

@@ -33,64 +33,47 @@ Sinalizer leds("LEDS", LEDS, TipoSinalizador::LED);
 Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000);
 
 SignalizerController sinalizadorController(&leds, &buzzer);
+bool pendingDeviceIdAck = false;
+String pendingOldDeviceId = "";
+String pendingNewDeviceId = "";
+String pendingRequestId = "";
 
-// Callback para processar mensagens MQTT com JSON
-void onMqttMessage(char *topic, byte *payload, unsigned int length)
+bool publishDeviceIdUpdateAck()
 {
-  Serial.println("\n=== Nova mensagem MQTT ===");
-
-  // O parsing JSON já foi feito automaticamente pela classe MQTTClient
-  // Acesse os dados através de mqttClient.comandoRecebido
-
-  Serial.print("Event: ");
-  Serial.println(mqttClient.comandoRecebido.event);
-  Serial.print("Message: ");
-  Serial.println(mqttClient.comandoRecebido.message);
-  Serial.print("ID: ");
-  Serial.println(mqttClient.comandoRecebido.id);
-  Serial.print("Command: ");
-  Serial.println(mqttClient.comandoRecebido.takt_count);
-
-  if (mqttClient.comandoRecebido.event == "device_config" ||
-      mqttClient.comandoRecebido.message == "device_config" ||
-      mqttClient.comandoRecebido.message == "update_config")
+  if (!pendingDeviceIdAck)
   {
-    DeviceConfig newConfig = deviceConfig;
-    bool changed = false;
-    Serial.println("comando de configuração recebido");
-
-    if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
-    {
-      if (saveConfig(newConfig))
-      {
-        deviceConfig = newConfig;
-        MQTT_TOPIC = buildMqttTopic(deviceConfig);
-        mqttClient.configure(
-            deviceConfig.mqttServer.c_str(),
-            deviceConfig.mqttPort,
-            deviceConfig.mqttUser.c_str(),
-            deviceConfig.mqttPass.c_str(),
-            MQTT_TOPIC.c_str(),
-            deviceConfig.deviceId.c_str());
-        mqttClient.begin();
-        mqttClient.disconnect();
-        Serial.println("Configuração atualizada e salva.");
-      }
-    }
-
-    Serial.println("==========================\n");
-    return;
+    return true;
   }
 
-  if (mqttClient.comandoRecebido.message == "test_takt_system") {
-    sinalizadorController.sequenciaCompleta();
-    return;
+  if (!mqttClient.isConnected())
+  {
+    return false;
   }
 
-  // Marcar que há um novo comando para processar
-  mqttClient.newCommand = true;
+  String ackTopic = String("takt/device/") + pendingNewDeviceId + "/ack";
+  StaticJsonDocument<256> ackDoc;
+  ackDoc["event"] = "device_config_ack";
+  ackDoc["message"] = "update_device_id_ack";
+  ackDoc["status"] = "ok";
+  ackDoc["old_device_id"] = pendingOldDeviceId;
+  ackDoc["new_device_id"] = pendingNewDeviceId;
+  ackDoc["device_id"] = pendingNewDeviceId;
+  ackDoc["request_id"] = pendingRequestId;
+  ackDoc["timestamp"] = millis();
 
-  Serial.println("==========================\n");
+  String ackPayload;
+  serializeJson(ackDoc, ackPayload);
+
+  bool published = mqttClient.publish(ackTopic.c_str(), ackPayload.c_str());
+  if (published)
+  {
+    Serial.print("ACK de update_device_id publicado em: ");
+    Serial.println(ackTopic);
+    Serial.println(ackPayload);
+    pendingDeviceIdAck = false;
+  }
+
+  return published;
 }
 
 void processarComando(int comando)
@@ -128,6 +111,97 @@ void processarComando(int comando)
   }
 }
 
+
+// Callback para processar mensagens MQTT com JSON
+void onMqttMessage(char *topic, byte *payload, unsigned int length)
+{
+  Serial.println("\n=== Nova mensagem MQTT ===");
+
+  // O parsing JSON já foi feito automaticamente pela classe MQTTClient
+  // Acesse os dados através de mqttClient.comandoRecebido
+
+  Serial.print("Event: ");
+  Serial.println(mqttClient.comandoRecebido.event);
+  Serial.print("Message: ");
+  Serial.println(mqttClient.comandoRecebido.message);
+  Serial.print("ID: ");
+  Serial.println(mqttClient.comandoRecebido.id);
+  Serial.print("Command: ");
+  Serial.println(mqttClient.comandoRecebido.takt_count);
+
+  if (mqttClient.comandoRecebido.event == "device_config" ||
+      mqttClient.comandoRecebido.message == "device_config" ||
+      mqttClient.comandoRecebido.message == "update_config" ||
+      mqttClient.comandoRecebido.message == "update_device_id")
+  {
+    DeviceConfig newConfig = deviceConfig;
+    bool changed = false;
+    Serial.println("comando de configuração recebido");
+
+    if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
+    {
+      if (saveConfig(newConfig))
+      {
+        String oldDeviceId = deviceConfig.deviceId;
+        String newDeviceId = newConfig.deviceId;
+        String requestId = mqttClient.mqttMessage["request_id"] | "";
+        bool isDeviceIdUpdate = mqttClient.comandoRecebido.message == "update_device_id";
+
+        deviceConfig = newConfig;
+        MQTT_TOPIC = buildMqttTopic(deviceConfig);
+        mqttClient.configure(
+            deviceConfig.mqttServer.c_str(),
+            deviceConfig.mqttPort,
+            deviceConfig.mqttUser.c_str(),
+            deviceConfig.mqttPass.c_str(),
+            MQTT_TOPIC.c_str(),
+            deviceConfig.deviceId.c_str());
+        mqttClient.begin();
+        mqttClient.disconnect();
+        mqttClient.reconnect();
+
+        if (isDeviceIdUpdate)
+        {
+          pendingOldDeviceId = oldDeviceId;
+          pendingNewDeviceId = newDeviceId;
+          pendingRequestId = requestId;
+          pendingDeviceIdAck = true;
+
+          if (!publishDeviceIdUpdateAck())
+          {
+            Serial.println("ACK pendente: será reenviado no loop quando reconectar.");
+          }
+        }
+
+        Serial.println("Configuração atualizada e salva.");
+        
+        // Aplicar takt_count se presente
+        if (mqttClient.mqttMessage.containsKey("takt_count"))
+        {
+          int taktCommand = deviceConfig.taktCount;
+          Serial.print("Aplicando takt_count da configuração: ");
+          Serial.println(taktCommand);
+          processarComando(taktCommand);
+        }
+      }
+    }
+
+    Serial.println("==========================\n");
+    return;
+  }
+
+  if (mqttClient.comandoRecebido.message == "test_takt_system") {
+    sinalizadorController.sequenciaCompleta();
+    return;
+  }
+
+  // Marcar que há um novo comando para processar
+  mqttClient.newCommand = true;
+
+  Serial.println("==========================\n");
+}
+
+
 void setup()
 {
   Serial.begin(115200);
@@ -138,10 +212,16 @@ void setup()
     Serial.println("Falha ao iniciar LittleFS");
   }
 
-  // Sempre grava valores padrões na memória a cada compilação
   setDefaultConfig(deviceConfig);
-  saveConfig(deviceConfig);
-  Serial.println("Configuração padrão gravada no LittleFS");
+  if (loadConfig(deviceConfig))
+  {
+    Serial.println("Configuração carregada do LittleFS");
+  }
+  else
+  {
+    Serial.println("Sem configuração salva, usando defaults");
+    saveConfig(deviceConfig);
+  }
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);
   mqttClient.configure(
@@ -175,6 +255,11 @@ void loop()
 
   // Manter conexão MQTT ativa
   mqttClient.loop();
+
+  if (pendingDeviceIdAck)
+  {
+    publishDeviceIdUpdateAck();
+  }
 
   if (mqttClient.newCommand)
   {
