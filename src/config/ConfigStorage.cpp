@@ -54,6 +54,15 @@ bool applyConfigFromJson(DeviceConfig &cfg, const JsonDocument &doc, bool &chang
       changed = true;
     }
   }
+  if (doc.containsKey("takt_count"))
+  {
+    int newTaktCount = doc["takt_count"].as<int>();
+    if (newTaktCount >= 0 && newTaktCount != cfg.taktCount)
+    {
+      cfg.taktCount = newTaktCount;
+      changed = true;
+    }
+  }
 
   return true;
 }
@@ -102,6 +111,7 @@ bool saveConfig(const DeviceConfig &cfg)
   doc["mqtt_pass"] = cfg.mqttPass;
   doc["mqtt_server"] = cfg.mqttServer;
   doc["mqtt_port"] = cfg.mqttPort;
+  doc["takt_count"] = cfg.taktCount;
 
   if (serializeJson(doc, file) == 0)
   {

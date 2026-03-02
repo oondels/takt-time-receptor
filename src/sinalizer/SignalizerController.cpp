@@ -51,7 +51,7 @@ void SignalizerController::setNivel(NivelSinalizacao nivel)
       break;
 
     case NivelSinalizacao::NIVEL_3:
-      leds->activate(CRGB::Green);
+      leds->activate(CRGB::Red);
       buzzer->activate();
       lastTaktTime = millis(); // Registrar o tempo de takt time
       break;

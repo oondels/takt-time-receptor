@@ -100,7 +100,7 @@ bool MQTTClient::parseJsonMessage(byte *payload, unsigned int length)
   comandoRecebido.timestamp = mqttMessage["timestamp"] | 0.0f;
   comandoRecebido.takt_count = mqttMessage["takt_count"] | 0;
 
-  Serial.println("=== Mens5agem MQTT recebida ===");
+  Serial.println("=== Mensagem MQTT recebida ===");
   Serial.print("Event: ");
   Serial.println(comandoRecebido.event);
   Serial.print("Message: ");
