@@ -8,6 +8,7 @@
 #include "config/ConfigStorage.h"
 #include "sinalizer/Signalizer.h"
 #include "sinalizer/SignalizerController.h"
+#include "ota/OtaMqttTrigger.h"
 #include "ota/OtaServer.h"
 
 // Pinos
@@ -39,6 +40,7 @@ String pendingOldDeviceId = "";
 String pendingNewDeviceId = "";
 String pendingRequestId = "";
 bool otaPending = false;
+bool otaInProgress = false;
 String pendingUpdateUrl = "";
 unsigned long pendingUpdateTimestamp = 0;
 
@@ -135,6 +137,18 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
     if (!isValidHttpUrl(updateUrl))
     {
       Serial.println("Erro: update_takt_time sem update_url valido. OTA nao agendada.");
+      return;
+    }
+
+    if (otaInProgress)
+    {
+      Serial.println("OTA em andamento. Novo update_takt_time ignorado.");
+      return;
+    }
+
+    if (otaPending && pendingUpdateUrl == updateUrl)
+    {
+      Serial.println("OTA ja pendente para esta URL. Comando duplicado ignorado.");
       return;
     }
 
@@ -331,6 +345,32 @@ void loop()
   if (pendingDeviceIdAck)
   {
     publishDeviceIdUpdateAck();
+  }
+
+  if (otaPending && !otaInProgress)
+  {
+    otaInProgress = true;
+    String updateUrl = pendingUpdateUrl;
+    otaPending = false;
+    pendingUpdateUrl = "";
+    pendingUpdateTimestamp = 0;
+
+    Serial.print("Iniciando OTA agendada via URL: ");
+    Serial.println(updateUrl);
+
+    bool otaResult = triggerOtaFromUrl(deviceConfig, updateUrl);
+    otaInProgress = false;
+
+    if (otaResult)
+    {
+      Serial.println("OTA concluida com sucesso. Reiniciando dispositivo.");
+      delay(200);
+      ESP.restart();
+    }
+    else
+    {
+      Serial.println("Falha na OTA agendada. Sistema segue em execucao.");
+    }
   }
 
   if (mqttClient.newCommand)

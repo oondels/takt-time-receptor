@@ -88,7 +88,7 @@ Atualizar /ota/last.json contendo:
 
 ## TASK 3
 name: Agendar execução OTA fora do callback MQTT
-conclude: false
+conclude: true
 
 ### Objetivo
 Executar OTA no loop principal, não no callback MQTT.
