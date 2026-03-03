@@ -144,6 +144,13 @@ const char *MQTT_PASS = "senha";
 const char *DEVICE_ID = "seu-device-id";
 ```
 
+### 3. Persistência e Config Remota
+
+- As configurações de dispositivo são salvas em **LittleFS** (arquivo `/config.json`).
+- No boot, o dispositivo carrega o arquivo e aplica as configurações.
+- Atualizações podem ser feitas via MQTT, salvando automaticamente no LittleFS.
+- O `DEVICE_ID` padrão para configuração remota é **cost-fab-cel**.
+
 ### 3. Duração do Alarme
 
 ```cpp
@@ -157,8 +164,8 @@ Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000, 5000);
 ### Tópico de Subscrição
 
 ```
-takt.device.{DEVICE_ID}
-ex: takt.device.cost-3-3508
+takt/device/{DEVICE_ID}
+ex: takt/device/cost-3-3508
 ```
 
 ### Formato da Mensagem (JSON)
@@ -193,6 +200,33 @@ Exemplo Teste de funcionalidade
 | `id` | String | Identificador único da mensagem |
 | `timestamp` | Float | Timestamp Unix |
 | `takt_count` | Integer | Comando de sinalização (0-3, 99) |
+
+### Atualização remota de configuração
+
+#### Tópico recomendado
+
+```
+takt/device/{DEVICE_ID}
+```
+
+#### JSON esperado
+
+```json
+{
+  "event": "device_config",
+  "message": "update_config",
+  "device_id": "cost-3-3608",
+  "mqtt_user": "usuario",
+  "mqtt_pass": "senha",
+  "mqtt_server": "10.100.1.43",
+  "mqtt_port": 1883
+}
+```
+
+#### Observações
+
+- O dispositivo aplica apenas os campos presentes.
+- Após salvar, o cliente MQTT é reconfigurado e reconecta automaticamente.
 
 ### Exemplo de Mensagem
 

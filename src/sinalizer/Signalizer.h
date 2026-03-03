@@ -8,7 +8,7 @@
 #define NUM_LEDS 10
 #define BRIGHTNESS 255
 #define LED_TYPE WS2811
-#define COLOR_ORDER GRB
+#define COLOR_ORDER BRG
 
 extern CRGB gLeds[NUM_LEDS];
 
