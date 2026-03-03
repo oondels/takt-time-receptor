@@ -21,12 +21,12 @@ WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
 String MQTT_TOPIC = buildMqttTopic(deviceConfig);
 MQTTClient mqttClient(
-  deviceConfig.mqttServer.c_str(),
-  deviceConfig.mqttPort,
-  deviceConfig.mqttUser.c_str(),
-  deviceConfig.mqttPass.c_str(),
-  MQTT_TOPIC.c_str(),
-  deviceConfig.deviceId.c_str());
+    deviceConfig.mqttServer.c_str(),
+    deviceConfig.mqttPort,
+    deviceConfig.mqttUser.c_str(),
+    deviceConfig.mqttPass.c_str(),
+    MQTT_TOPIC.c_str(),
+    deviceConfig.deviceId.c_str());
 
 // Sinalizadores
 Sinalizer leds("LEDS", LEDS, TipoSinalizador::LED);
@@ -111,24 +111,9 @@ void processarComando(int comando)
   }
 }
 
-
 // Callback para processar mensagens MQTT com JSON
 void onMqttMessage(char *topic, byte *payload, unsigned int length)
 {
-  Serial.println("\n=== Nova mensagem MQTT ===");
-
-  // O parsing JSON já foi feito automaticamente pela classe MQTTClient
-  // Acesse os dados através de mqttClient.comandoRecebido
-
-  Serial.print("Event: ");
-  Serial.println(mqttClient.comandoRecebido.event);
-  Serial.print("Message: ");
-  Serial.println(mqttClient.comandoRecebido.message);
-  Serial.print("ID: ");
-  Serial.println(mqttClient.comandoRecebido.id);
-  Serial.print("Command: ");
-  Serial.println(mqttClient.comandoRecebido.takt_count);
-
   if (mqttClient.comandoRecebido.event == "device_config" ||
       mqttClient.comandoRecebido.message == "device_config" ||
       mqttClient.comandoRecebido.message == "update_config" ||
@@ -136,32 +121,45 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   {
     DeviceConfig newConfig = deviceConfig;
     bool changed = false;
-    Serial.println("comando de configuração recebido");
+    Serial.println("Comando de configuração recebido");
 
     if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
     {
       if (saveConfig(newConfig))
       {
-        String oldDeviceId = deviceConfig.deviceId;
-        String newDeviceId = newConfig.deviceId;
-        String requestId = mqttClient.mqttMessage["request_id"] | "";
-        bool isDeviceIdUpdate = mqttClient.comandoRecebido.message == "update_device_id";
-
-        deviceConfig = newConfig;
-        MQTT_TOPIC = buildMqttTopic(deviceConfig);
-        mqttClient.configure(
-            deviceConfig.mqttServer.c_str(),
-            deviceConfig.mqttPort,
-            deviceConfig.mqttUser.c_str(),
-            deviceConfig.mqttPass.c_str(),
-            MQTT_TOPIC.c_str(),
-            deviceConfig.deviceId.c_str());
-        mqttClient.begin();
-        mqttClient.disconnect();
-        mqttClient.reconnect();
-
-        if (isDeviceIdUpdate)
+        // Aplicar takt_count se presente
+        if (mqttClient.mqttMessage.containsKey("takt_count"))
         {
+          int taktCommand = deviceConfig.taktCount;
+          Serial.print("Aplicando takt_count da configuração: ");
+          Serial.println(taktCommand);
+          processarComando(taktCommand);
+          return;
+        }
+
+        bool isDeviceIdUpdate = mqttClient.comandoRecebido.message == "update_device_id";
+        bool isUpdateMqtt = mqttClient.comandoRecebido.message == "update_mqtt";
+
+        // Atualização de conexão broker mqtt
+        if (isDeviceIdUpdate || isUpdateMqtt)
+        {
+          deviceConfig = newConfig;
+          MQTT_TOPIC = buildMqttTopic(deviceConfig);
+          mqttClient.configure(
+              deviceConfig.mqttServer.c_str(),
+              deviceConfig.mqttPort,
+              deviceConfig.mqttUser.c_str(),
+              deviceConfig.mqttPass.c_str(),
+              MQTT_TOPIC.c_str(),
+              deviceConfig.deviceId.c_str());
+          mqttClient.begin();
+          mqttClient.disconnect();
+          mqttClient.reconnect();
+
+          String oldDeviceId = deviceConfig.deviceId;
+          String newDeviceId = newConfig.deviceId;
+          String requestId = mqttClient.mqttMessage["request_id"] | "";
+
           pendingOldDeviceId = oldDeviceId;
           pendingNewDeviceId = newDeviceId;
           pendingRequestId = requestId;
@@ -174,15 +172,6 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
         }
 
         Serial.println("Configuração atualizada e salva.");
-        
-        // Aplicar takt_count se presente
-        if (mqttClient.mqttMessage.containsKey("takt_count"))
-        {
-          int taktCommand = deviceConfig.taktCount;
-          Serial.print("Aplicando takt_count da configuração: ");
-          Serial.println(taktCommand);
-          processarComando(taktCommand);
-        }
       }
     }
 
@@ -190,7 +179,8 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
     return;
   }
 
-  if (mqttClient.comandoRecebido.message == "test_takt_system") {
+  if (mqttClient.comandoRecebido.message == "test_takt_system")
+  {
     sinalizadorController.sequenciaCompleta();
     return;
   }
@@ -200,7 +190,6 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
 
   Serial.println("==========================\n");
 }
-
 
 void setup()
 {

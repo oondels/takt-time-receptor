@@ -28,7 +28,6 @@ static void applyField(String &target, const JsonVariantConst &value, bool &chan
 bool applyConfigFromJson(DeviceConfig &cfg, const JsonDocument &doc, bool &changed)
 {
   changed = false;
-
   if (doc.containsKey("device_id"))
   {
     applyField(cfg.deviceId, doc["device_id"], changed);
@@ -57,8 +56,9 @@ bool applyConfigFromJson(DeviceConfig &cfg, const JsonDocument &doc, bool &chang
   if (doc.containsKey("takt_count"))
   {
     int newTaktCount = doc["takt_count"].as<int>();
-    if (newTaktCount >= 0 && newTaktCount != cfg.taktCount)
+    if (newTaktCount >= 0 && newTaktCount <= 2)
     {
+      Serial.println("Atualizando taktCount para: " + String(newTaktCount));
       cfg.taktCount = newTaktCount;
       changed = true;
     }
