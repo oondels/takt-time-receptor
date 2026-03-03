@@ -8,6 +8,7 @@
 #include "config/ConfigStorage.h"
 #include "sinalizer/Signalizer.h"
 #include "sinalizer/SignalizerController.h"
+#include "ota/OtaServer.h"
 
 // Pinos
 constexpr int LEDS = 4;
@@ -249,6 +250,8 @@ void setup()
   Serial.println("Conectando ao WiFi...");
   wifiClient.begin();
 
+  beginOtaServer(deviceConfig);
+
   mqttClient.begin();
   mqttClient.setCallback(onMqttMessage);
 
@@ -257,6 +260,8 @@ void setup()
 
 void loop()
 {
+  loopOtaServer();
+
   // Verificar conexão WiFi
   bool wifiConnected = wifiClient.loop();
   if (!wifiConnected)

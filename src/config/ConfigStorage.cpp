@@ -70,6 +70,15 @@ bool applyConfigFromJson(DeviceConfig &cfg, const JsonDocument &doc, bool &chang
       Serial.println("takt_count inválido: esperado entre 0 e 3.");
     }
   }
+  if (doc.containsKey("ota_key"))
+  {
+    String newOtaKey = doc["ota_key"].as<String>();
+    if (newOtaKey != cfg.otaKey)
+    {
+      cfg.otaKey = newOtaKey;
+      changed = true;
+    }
+  }
 
   return true;
 }
@@ -119,6 +128,7 @@ bool saveConfig(const DeviceConfig &cfg)
   doc["mqtt_server"] = cfg.mqttServer;
   doc["mqtt_port"] = cfg.mqttPort;
   doc["takt_count"] = cfg.taktCount;
+  doc["ota_key"] = cfg.otaKey;
 
   if (serializeJson(doc, file) == 0)
   {
