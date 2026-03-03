@@ -1,0 +1,10 @@
+{
+  "name": "ota-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal OTA firmware file server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

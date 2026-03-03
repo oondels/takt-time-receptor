@@ -115,7 +115,7 @@ Executar OTA no loop principal, não no callback MQTT.
 
 ## TASK 4
 name: Criar servidor Node.js minimalista para firmware
-conclude: false
+conclude: true
 
 ### Objetivo
 Criar servidor simples que entregue firmware.bin.
