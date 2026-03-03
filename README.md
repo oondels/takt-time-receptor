@@ -13,6 +13,7 @@ Sistema embarcado ESP32 para monitoramento visual e sonoro de takt time em ambie
 - [Níveis de Sinalização](#níveis-de-sinalização)
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Compilação e Upload](#compilação-e-upload)
+- [OTA via HTTP](#ota-via-http)
 - [Uso](#uso)
 
 ## Visão Geral
@@ -150,6 +151,21 @@ const char *DEVICE_ID = "seu-device-id";
 - No boot, o dispositivo carrega o arquivo e aplica as configurações.
 - Atualizações podem ser feitas via MQTT, salvando automaticamente no LittleFS.
 - O `DEVICE_ID` padrão para configuração remota é **cost-fab-cel**.
+- Para habilitar OTA HTTP, configure `ota_key` com valor não vazio.
+
+Exemplo de `/config.json`:
+
+```json
+{
+  "device_id": "cost-3-3608",
+  "mqtt_user": "usuario",
+  "mqtt_pass": "senha",
+  "mqtt_server": "10.100.1.43",
+  "mqtt_port": 1883,
+  "takt_count": 0,
+  "ota_key": "minha-chave-ota"
+}
+```
 
 ### 3. Duração do Alarme
 
@@ -289,6 +305,9 @@ takt-time-receptor/
 │   ├── mqtt/
 │   │   ├── MQTTClient.h            # Header MQTT
 │   │   └── MQTTClient.cpp          # Implementação MQTT
+│   ├── ota/
+│   │   ├── OtaServer.h             # Endpoints HTTP de OTA
+│   │   └── OtaServer.cpp           # Upload OTA e status
 │   └── sinalizer/
 │       ├── Signalizer.h            # Header dispositivo individual
 │       ├── Signalizer.cpp          # Implementação dispositivo
@@ -317,6 +336,48 @@ lib_deps =
     bblanchon/ArduinoJson@^6.21.3
 monitor_speed = 115200
 ```
+
+## OTA via HTTP
+
+### Upload de firmware
+
+Endpoint: `POST /ota`  
+Header obrigatório: `X-OTA-Key: <ota_key>`
+
+```bash
+curl -X POST "http://<ip-do-esp32>/ota" \
+  -H "X-OTA-Key: <key>" \
+  -H "Content-Type: application/octet-stream" \
+  --data-binary "@firmware.bin"
+```
+
+Resposta de sucesso esperada:
+
+```json
+{"ok":true,"message":"updated","bytes_written":123456}
+```
+
+### Consultar status da última tentativa
+
+Endpoint: `GET /ota/status`
+
+```bash
+curl "http://<ip-do-esp32>/ota/status"
+```
+
+Exemplo de retorno:
+
+```json
+{
+  "started_at_ms": 10482,
+  "finished_at_ms": 18337,
+  "bytes_received": 877733,
+  "result": "ok",
+  "remote_ip": "10.100.1.80"
+}
+```
+
+Em falhas, o JSON também pode conter `update_error_code` e `update_error_str`.
 
 ### Comandos
 

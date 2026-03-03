@@ -135,7 +135,7 @@ Acceptance:
 - JSON is valid and not empty
 
 TASK 5 — README + curl examples
-- conclude = false
+- conclude = true
 Add documentation:
 - How to set ota_key in /config.json (LittleFS)
 - Example:
