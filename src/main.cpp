@@ -15,8 +15,8 @@ constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // WiFi & MQTT
-const char *SSID = "DASS-IOT";
-const char *PASSWORD = "Dass0306IOT";
+const char *SSID = "Ti";
+const char *PASSWORD = "gdti5s11se";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
@@ -226,14 +226,33 @@ void setup()
   }
 
   setDefaultConfig(deviceConfig);
-  if (loadConfig(deviceConfig))
+  const String currentFirmwareSignature = String(__DATE__) + " " + String(__TIME__);
+  bool shouldResetConfig = hasFirmwareSignatureChanged(currentFirmwareSignature);
+
+  if (shouldResetConfig)
+  {
+    Serial.println("Nova firmware detectada. Resetando configuracao para defaults.");
+    if (!saveConfig(deviceConfig))
+    {
+      Serial.println("Falha ao salvar defaults apos troca de firmware.");
+    }
+
+    if (!saveFirmwareSignature(currentFirmwareSignature))
+    {
+      Serial.println("Falha ao persistir assinatura da firmware.");
+    }
+  }
+  else if (loadConfig(deviceConfig))
   {
     Serial.println("Configuração carregada do LittleFS");
   }
   else
   {
     Serial.println("Sem configuração salva, usando defaults");
-    saveConfig(deviceConfig);
+    if (saveConfig(deviceConfig))
+    {
+      saveFirmwareSignature(currentFirmwareSignature);
+    }
   }
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);

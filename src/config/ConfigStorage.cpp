@@ -5,6 +5,7 @@
 namespace
 {
   constexpr const char *CONFIG_FILE_PATH = "/config.json";
+  constexpr const char *FIRMWARE_SIGNATURE_FILE_PATH = "/firmware_signature.txt";
 }
 
 bool beginConfigStorage(bool formatOnFail)
@@ -138,5 +139,44 @@ bool saveConfig(const DeviceConfig &cfg)
   }
 
   file.close();
+  return true;
+}
+
+bool hasFirmwareSignatureChanged(const String &currentSignature)
+{
+  File file = LittleFS.open(FIRMWARE_SIGNATURE_FILE_PATH, "r");
+  if (!file)
+  {
+    return true;
+  }
+
+  String savedSignature = file.readString();
+  file.close();
+  savedSignature.trim();
+
+  String normalizedCurrent = currentSignature;
+  normalizedCurrent.trim();
+
+  return savedSignature != normalizedCurrent;
+}
+
+bool saveFirmwareSignature(const String &signature)
+{
+  File file = LittleFS.open(FIRMWARE_SIGNATURE_FILE_PATH, "w");
+  if (!file)
+  {
+    Serial.println("Falha ao salvar assinatura de firmware");
+    return false;
+  }
+
+  size_t written = file.print(signature);
+  file.close();
+
+  if (written != signature.length())
+  {
+    Serial.println("Assinatura de firmware incompleta");
+    return false;
+  }
+
   return true;
 }
