@@ -120,7 +120,7 @@ Acceptance:
 - Failure path never reboots
 
 TASK 4 — Persist OTA status to LittleFS (/ota/last.json)
-- conclude = false
+- conclude = true
 - Ensure LittleFS is mounted (already done by beginConfigStorage in setup)
 - Write last.json on:
   - start (result="in_progress")

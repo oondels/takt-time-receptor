@@ -1,5 +1,6 @@
 #include "OtaServer.h"
 
+#include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <Update.h>
 #include <WebServer.h>
@@ -8,6 +9,7 @@ namespace
 {
   constexpr uint16_t OTA_SERVER_PORT = 80;
   constexpr const char *OTA_STATUS_FILE = "/ota/last.json";
+  constexpr const char *OTA_STATUS_DIR = "/ota";
   constexpr const char *OTA_HEADER_KEY = "X-OTA-Key";
 
   WebServer otaServer(OTA_SERVER_PORT);
@@ -22,11 +24,79 @@ namespace
     bool hasError = false;
     int httpCode = 500;
     size_t bytesWritten = 0;
+    unsigned long startedAtMs = 0;
+    unsigned long finishedAtMs = 0;
     String error;
     String detail;
+    String remoteIp;
+    int updateErrorCode = 0;
+    String updateErrorStr;
   };
 
   OtaRequestState otaState;
+
+  bool ensureOtaStatusDirectory()
+  {
+    if (LittleFS.exists(OTA_STATUS_DIR))
+    {
+      return true;
+    }
+
+    return LittleFS.mkdir(OTA_STATUS_DIR);
+  }
+
+  void persistOtaStatus(const char *result)
+  {
+    if (!ensureOtaStatusDirectory())
+    {
+      Serial.println("Falha ao criar diretório de status OTA");
+      return;
+    }
+
+    StaticJsonDocument<512> statusDoc;
+    statusDoc["started_at_ms"] = otaState.startedAtMs;
+    statusDoc["finished_at_ms"] = otaState.finishedAtMs;
+    statusDoc["bytes_received"] = otaState.bytesWritten;
+    statusDoc["result"] = result;
+
+    if (otaState.updateErrorCode != 0)
+    {
+      statusDoc["update_error_code"] = otaState.updateErrorCode;
+    }
+
+    if (otaState.updateErrorStr.length() > 0)
+    {
+      statusDoc["update_error_str"] = otaState.updateErrorStr;
+    }
+
+    if (otaState.remoteIp.length() > 0)
+    {
+      statusDoc["remote_ip"] = otaState.remoteIp;
+    }
+
+    File statusFile = LittleFS.open(OTA_STATUS_FILE, "w");
+    if (!statusFile)
+    {
+      Serial.println("Falha ao abrir arquivo de status OTA");
+      return;
+    }
+
+    if (serializeJson(statusDoc, statusFile) == 0)
+    {
+      Serial.println("Falha ao escrever status OTA");
+    }
+
+    statusFile.close();
+  }
+
+  void captureRemoteIp()
+  {
+    String remoteIp = otaServer.client().remoteIP().toString();
+    if (remoteIp != "0.0.0.0")
+    {
+      otaState.remoteIp = remoteIp;
+    }
+  }
 
   void abortUpdateIfRunning()
   {
@@ -55,6 +125,8 @@ namespace
     otaState.httpCode = code;
     otaState.error = error;
     otaState.detail = detail;
+    otaState.updateErrorCode = Update.getError();
+    otaState.updateErrorStr = otaState.updateErrorCode != 0 ? String(Update.errorString()) : detail;
     abortUpdateIfRunning();
   }
 
@@ -99,6 +171,9 @@ namespace
     {
       resetOtaState();
       otaState.started = true;
+      otaState.startedAtMs = millis();
+      captureRemoteIp();
+      persistOtaStatus("in_progress");
 
       if (deviceConfig == nullptr)
       {
@@ -189,17 +264,32 @@ namespace
     if (!otaState.started)
     {
       resetOtaState();
+      otaState.startedAtMs = millis();
+      otaState.finishedAtMs = otaState.startedAtMs;
+      captureRemoteIp();
       setOtaError(400, "invalid_request", "no upload payload received");
+      persistOtaStatus("fail");
       sendOtaErrorResponse();
       return;
     }
 
     if (otaState.hasError || !otaState.updateCompleted)
     {
+      otaState.finishedAtMs = millis();
+      if (otaState.updateErrorStr.length() == 0)
+      {
+        otaState.updateErrorStr = otaState.detail;
+      }
+      persistOtaStatus("fail");
       sendOtaErrorResponse();
       resetOtaState();
       return;
     }
+
+    otaState.finishedAtMs = millis();
+    otaState.updateErrorCode = 0;
+    otaState.updateErrorStr = "";
+    persistOtaStatus("ok");
 
     String response =
         String("{\"ok\":true,\"message\":\"updated\",\"bytes_written\":") +
