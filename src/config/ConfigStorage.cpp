@@ -56,11 +56,18 @@ bool applyConfigFromJson(DeviceConfig &cfg, const JsonDocument &doc, bool &chang
   if (doc.containsKey("takt_count"))
   {
     int newTaktCount = doc["takt_count"].as<int>();
-    if (newTaktCount >= 0 && newTaktCount <= 2)
+    if (newTaktCount >= 0 && newTaktCount <= 3)
     {
-      Serial.println("Atualizando taktCount para: " + String(newTaktCount));
-      cfg.taktCount = newTaktCount;
-      changed = true;
+      if (newTaktCount != cfg.taktCount)
+      {
+        Serial.println("Atualizando taktCount para: " + String(newTaktCount));
+        cfg.taktCount = newTaktCount;
+        changed = true;
+      }
+    }
+    else
+    {
+      Serial.println("takt_count inválido: esperado entre 0 e 3.");
     }
   }
 
