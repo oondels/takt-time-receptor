@@ -8,6 +8,7 @@ void setDefaultConfig(DeviceConfig &cfg)
   cfg.mqttServer = DEFAULT_MQTT_SERVER;
   cfg.mqttPort = DEFAULT_MQTT_PORT;
   cfg.taktCount = DEFAULT_TAKT_COUNT;
+  cfg.otaKey = DEFAULT_OTA_KEY;
 }
 
 String buildMqttTopic(const DeviceConfig &cfg)

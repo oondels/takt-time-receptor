@@ -8,6 +8,7 @@ constexpr const char *DEFAULT_DEVICE_ID = "cost-default-id";
 ***REMOVED***
 constexpr int DEFAULT_MQTT_PORT = 1883;
 constexpr int DEFAULT_TAKT_COUNT = 0;
+constexpr const char *DEFAULT_OTA_KEY = "";
 
 struct DeviceConfig
 {
@@ -17,6 +18,7 @@ struct DeviceConfig
   String mqttServer;
   int mqttPort;
   int taktCount;
+  String otaKey;
 };
 
 void setDefaultConfig(DeviceConfig &cfg);
