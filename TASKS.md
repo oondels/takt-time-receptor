@@ -44,7 +44,7 @@ Adicionar detecção da mensagem MQTT com título "update_takt_time" no fluxo at
 
 ## TASK 2
 name: Implementar módulo OTA via HTTP (cliente)
-conclude: false
+conclude: true
 
 ### Objetivo
 Criar módulo responsável por baixar firmware via HTTP e aplicar Update.
