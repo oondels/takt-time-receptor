@@ -1,0 +1,2 @@
+- Detectar mensagem update_takt_time via MQTT - concluída em 2026-03-03 16:05
+- Observações: No callback MQTT em `src/main.cpp`, foi adicionada detecção de `event` ou `message` igual a `update_takt_time`, validação de `update_url` (não vazio e com prefixo `http://` ou `https://`) e sinalização assíncrona com `otaPending`, `pendingUpdateUrl` e `pendingUpdateTimestamp`; em caso de URL inválida, registra erro e encerra sem travar. Build validado com `pio run` concluído com sucesso.

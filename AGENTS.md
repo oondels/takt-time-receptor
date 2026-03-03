@@ -7,6 +7,7 @@ This repository contains ESP32 firmware built with PlatformIO.
 - `src/wifi/`: Wi-Fi connection and reconnection logic.
 - `src/mqtt/`: MQTT connection, subscriptions, and message parsing.
 - `src/config/`: device configuration models and LittleFS persistence.
+- `src/ota/`: HTTP OTA server, firmware upload flow, and OTA status persistence.
 - `src/sinalizer/`: LED/buzzer device control and level controller.
 - `include/`: shared headers.
 - `lib/`: local libraries (if needed).

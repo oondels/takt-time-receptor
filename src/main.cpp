@@ -38,6 +38,15 @@ bool pendingDeviceIdAck = false;
 String pendingOldDeviceId = "";
 String pendingNewDeviceId = "";
 String pendingRequestId = "";
+bool otaPending = false;
+String pendingUpdateUrl = "";
+unsigned long pendingUpdateTimestamp = 0;
+
+bool isValidHttpUrl(const String &url)
+{
+  return url.length() > 0 &&
+         (url.startsWith("http://") || url.startsWith("https://"));
+}
 
 bool publishDeviceIdUpdateAck()
 {
@@ -115,6 +124,33 @@ void processarComando(int comando)
 // Callback para processar mensagens MQTT com JSON
 void onMqttMessage(char *topic, byte *payload, unsigned int length)
 {
+  if (mqttClient.comandoRecebido.event == "update_takt_time" ||
+      mqttClient.comandoRecebido.message == "update_takt_time")
+  {
+    (void)topic;
+    (void)payload;
+    (void)length;
+
+    String updateUrl = mqttClient.mqttMessage["update_url"] | "";
+    if (!isValidHttpUrl(updateUrl))
+    {
+      Serial.println("Erro: update_takt_time sem update_url valido. OTA nao agendada.");
+      return;
+    }
+
+    pendingUpdateUrl = updateUrl;
+    pendingUpdateTimestamp = mqttClient.mqttMessage["timestamp"] | millis();
+    otaPending = true;
+
+    Serial.println("OTA pendente agendada via MQTT.");
+    Serial.print("update_url: ");
+    Serial.println(pendingUpdateUrl);
+    Serial.print("timestamp: ");
+    Serial.println(pendingUpdateTimestamp);
+    Serial.println("==========================\n");
+    return;
+  }
+
   if (mqttClient.comandoRecebido.event == "device_config" ||
       mqttClient.comandoRecebido.message == "device_config" ||
       mqttClient.comandoRecebido.message == "update_config" ||

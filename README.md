@@ -18,7 +18,7 @@ Sistema embarcado ESP32 para monitoramento visual e sonoro de takt time em ambie
 
 ## Visão Geral
 
-O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe comandos via MQTT para controlar um sistema de sinalização progressiva composto por 3 LEDs e 1 buzzer. O sistema foi projetado para alertar operadores sobre o status do takt time em processos produtivos.
+O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe comandos via MQTT para controlar um sistema de sinalização progressiva composto por uma fita/anel WS2811 e 1 buzzer. O sistema foi projetado para alertar operadores sobre o status do takt time em processos produtivos.
 
 ### Funcionamento
 
@@ -52,7 +52,7 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 │         │                 │                  │          │
 │         ▼                 ▼                  ▼          │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   ESP32      │  │   Broker     │  │  LED1-3 +    │  │
+│  │   ESP32      │  │   Broker     │  │ WS2811 +     │  │
 │  │   WiFi       │  │   MQTT       │  │   Buzzer     │  │
 │  └──────────────┘  └──────────────┘  └──────────────┘  │
 └─────────────────────────────────────────────────────────┘
@@ -73,7 +73,7 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 
 #### 3. **Sinalizer**
 - Controla dispositivos individuais (LED ou Buzzer)
-- Suporta lógica invertida para LEDs (LOW=ligado)
+- Suporta fita/anel WS2811 via FastLED
 - Timer interno para controle de duração
 - Métodos: `activate()`, `deactivate()`, `isActive()`
 
@@ -90,18 +90,15 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 | Componente | Quantidade | Especificação |
 |------------|------------|---------------|
 | ESP32 DevKit v1 | 1 | Qualquer variante |
-| LEDs | 3 | Cor: Verde, Amarelo, Vermelho (sugestão) |
+| Fita/anel WS2811 | 1 | Configurado para 10 LEDs |
 | Buzzer Ativo | 1 | 5V, 1000Hz |
-| Resistores | 3 | 220Ω para LEDs |
 | Protoboard | 1 | Opcional |
 | Jumpers | - | Conforme necessário |
 
 ### Pinagem
 
 ```cpp
-GPIO 25 → LED1 (Verde - Nível 1)
-GPIO 26 → LED2 (Amarelo - Nível 2)
-GPIO 27 → LED3 (Vermelho - Nível 3)
+GPIO 4  → Dados WS2811 (níveis via cores)
 GPIO 14 → Buzzer (Alarme)
 GND     → Comum
 ```
@@ -111,20 +108,12 @@ GND     → Comum
 ```
 ESP32                    Componentes
 ─────                    ───────────
-GPIO 25 ──[220Ω]──┬──── LED1 (+)
-                  └──── LED1 (-) → GND
-
-GPIO 26 ──[220Ω]──┬──── LED2 (+)
-                  └──── LED2 (-) → GND
-
-GPIO 27 ──[220Ω]──┬──── LED3 (+)
-                  └──── LED3 (-) → GND
-
-GPIO 14 ──────────┬──── Buzzer (+)
-                  └──── Buzzer (-) → GND
+GPIO 4  ──────────────── DIN WS2811
+GPIO 14 ──────────────── Buzzer (+)
+GND     ──────────────── GND comum
 ```
 
-> **Nota**: Os LEDs usam lógica invertida (LOW = ligado, HIGH = desligado)
+> **Nota**: A sinalização visual usa `FastLED` (WS2811) com 10 LEDs (`NUM_LEDS = 10`).
 
 ## Configuração
 
@@ -150,8 +139,9 @@ const char *DEVICE_ID = "seu-device-id";
 - As configurações de dispositivo são salvas em **LittleFS** (arquivo `/config.json`).
 - No boot, o dispositivo carrega o arquivo e aplica as configurações.
 - Atualizações podem ser feitas via MQTT, salvando automaticamente no LittleFS.
-- O `DEVICE_ID` padrão para configuração remota é **cost-fab-cel**.
+- O `DEVICE_ID` padrão atual é **cost-default-id**.
 - Para habilitar OTA HTTP, configure `ota_key` com valor não vazio.
+- Em firmware nova (build novo ou OTA), a configuração persistida é resetada para defaults.
 
 Exemplo de `/config.json`:
 
@@ -160,14 +150,14 @@ Exemplo de `/config.json`:
   "device_id": "cost-3-3608",
   "mqtt_user": "usuario",
   "mqtt_pass": "senha",
-  "mqtt_server": "10.100.1.43",
+  "mqtt_server": "10.110.193.135",
   "mqtt_port": 1883,
   "takt_count": 0,
   "ota_key": "minha-chave-ota"
 }
 ```
 
-### 3. Duração do Alarme
+### 4. Duração do Alarme
 
 ```cpp
 // No construtor do buzzer (em milissegundos)
@@ -234,7 +224,7 @@ takt/device/{DEVICE_ID}
   "device_id": "cost-3-3608",
   "mqtt_user": "usuario",
   "mqtt_pass": "senha",
-  "mqtt_server": "10.100.1.43",
+  "mqtt_server": "10.110.193.135",
   "mqtt_port": 1883
 }
 ```
@@ -260,21 +250,21 @@ takt/device/{DEVICE_ID}
 
 ### Tabela de Comandos
 
-| Comando | Nível | LED1 | LED2 | LED3 | Buzzer | Descrição |
-|---------|-------|------|------|------|--------|-----------|
-| `0` | DESLIGADO | ❌ | ❌ | ❌ | ❌ | Tudo desligado |
-| `1` | NÍVEL_1 | ✅ | ❌ | ❌ | ❌ | Alerta inicial |
-| `2` | NÍVEL_2 | ✅ | ✅ | ❌ | ❌ | Atenção aumentada |
-| `3` | NÍVEL_3 | ✅ | ✅ | ✅ | ✅ | **Crítico + Alarme** |
-| `99` | SEQUÊNCIA | 🔄 | 🔄 | 🔄 | 🔄 | Sequência completa (demo) |
+| Comando (`takt_count`) | Nível | Cor WS2811 | Buzzer | Descrição |
+|---------|-------|-----------|--------|-----------|
+| `0` | DESLIGADO | Off | Off | Tudo desligado |
+| `1` | NÍVEL_1 | Azul | Off | Alerta inicial |
+| `2` | NÍVEL_2 | Amarelo | Off | Atenção aumentada |
+| `3` | NÍVEL_3 | Vermelho | On | **Crítico + Alarme** |
+| `99` | SEQUÊNCIA | Cores em sequência | Sequência | Teste completo do sistema |
 
 ### Regras de Validação
 
-#### Dependências entre Níveis
+#### Regras de Aplicação
 
-1. **LED2** só pode ser ativado se **LED1** estiver ligado
-2. **LED3** só pode ser ativado se **LED1 E LED2** estiverem ligados
-3. **Buzzer** só ativa no **Nível 3** (todos LEDs acesos)
+1. Nível `1`: liga LEDs WS2811 em azul e desliga buzzer.
+2. Nível `2`: liga LEDs WS2811 em amarelo e desliga buzzer.
+3. Nível `3`: liga LEDs WS2811 em vermelho e liga buzzer.
 
 #### Auto-desligamento
 
@@ -284,12 +274,12 @@ takt/device/{DEVICE_ID}
 ### Fluxo de Ativação
 
 ```
-Comando 1 → LED1 ON
+Comando 1 → LEDs azul, buzzer off
             ↓
-Comando 2 → LED1 ON + LED2 ON
+Comando 2 → LEDs amarelo, buzzer off
             ↓
-Comando 3 → LED1 ON + LED2 ON + LED3 ON + BUZZER ON
-            ↓ (após 5 segundos)
+Comando 3 → LEDs vermelho, buzzer on
+            ↓ (após activationDuration)
            Tudo OFF (automático)
 ```
 
@@ -305,6 +295,11 @@ takt-time-receptor/
 │   ├── mqtt/
 │   │   ├── MQTTClient.h            # Header MQTT
 │   │   └── MQTTClient.cpp          # Implementação MQTT
+│   ├── config/
+│   │   ├── DeviceConfig.h          # Modelo e defaults de configuração
+│   │   ├── DeviceConfig.cpp        # Inicialização de defaults e tópicos
+│   │   ├── ConfigStorage.h         # Persistência LittleFS (config e assinatura firmware)
+│   │   └── ConfigStorage.cpp       # Load/save de /config.json
 │   ├── ota/
 │   │   ├── OtaServer.h             # Endpoints HTTP de OTA
 │   │   └── OtaServer.cpp           # Upload OTA e status
@@ -343,12 +338,13 @@ monitor_speed = 115200
 
 Endpoint: `POST /ota`  
 Header obrigatório: `X-OTA-Key: <ota_key>`
+Tipos aceitos: `application/octet-stream` (raw) e `multipart/form-data`.
 
 ```bash
 curl -X POST "http://<ip-do-esp32>/ota" \
   -H "X-OTA-Key: <key>" \
   -H "Content-Type: application/octet-stream" \
-  --data-binary "@firmware.bin"
+  --data-binary "@.pio/build/esp32doit-devkit-v1/firmware.bin"
 ```
 
 Resposta de sucesso esperada:
@@ -401,51 +397,45 @@ pio run --target upload && pio device monitor
 
 ```
 === Inicializando Takt Time Receptor ===
-Inicializado: LED LED1 no pino 25
-Inicializado: LED LED2 no pino 26
-Inicializado: LED LED3 no pino 27
-Inicializado: BUZZER Buzzer no pino 14
+Configuração carregada do LittleFS
+LEDS desligado
+Leds configurados no GPIO 4
+Buzzer desligado
+Inicializado: BUZZER
+Todos os dispositivos desligados
 SignalizerController inicializado
 Conectando ao WiFi...
-WiFi conectado! IP: 192.168.1.100
-Iniciando cliente MQTT...
-Conectado ao broker MQTT
+Conectando Wi-Fi...
+Wi-fi conectado
+Endereço IP:
+192.168.80.242
 Setup concluído!
 ```
 
 ### 2. Recebendo Comando
 
 ```
-=== Nova mensagem MQTT ===
-Event: takt_warning
-Message: Produção atrasada
-ID: msg-001
-Command: 2
-==========================
-
-LED1 ligado
-LED2 ligado
+Comando de configuração recebido
+Aplicando takt_count recebido: 2
+LEDS ligado
+Buzzer desligado
 Nível aplicado: 2
+==========================
 ```
 
 ### 3. Auto-desligamento (Nível 3)
 
 ```
-LED1 ligado
-LED2 ligado
-LED3 ligado
+LEDS ligado
 Buzzer ligado
 Nível aplicado: 3
-Nível 3 ativado. Aguardando duração do alarme...
 
 (após 5 segundos)
 
-LED1 desligado
-LED2 desligado
-LED3 desligado
+LEDS desligado
 Buzzer desligado
 Todos os dispositivos desligados
-Nível 3 desativado automaticamente após duração do alarme.
+Nível 3 desativado após duração do alarme.
 ```
 
 ### 4. Publicando Comandos (Exemplo com mosquitto_pub)
@@ -453,19 +443,19 @@ Nível 3 desativado automaticamente após duração do alarme.
 ```bash
 # Nível 1
 mosquitto_pub -h 10.110.21.162 -t "takt/device/cost-2-2408" \
-  -m '{"event":"takt_ok","message":"Normal","id":"1","timestamp":1234567890.0,"command":1}'
+  -m '{"event":"takt_ok","message":"Normal","id":"1","timestamp":1234567890.0,"takt_count":1}'
 
 # Nível 2
 mosquitto_pub -h 10.110.21.162 -t "takt/device/cost-2-2408" \
-  -m '{"event":"takt_warning","message":"Atenção","id":"2","timestamp":1234567891.0,"command":2}'
+  -m '{"event":"takt_warning","message":"Atenção","id":"2","timestamp":1234567891.0,"takt_count":2}'
 
 # Nível 3 (crítico)
 mosquitto_pub -h 10.110.21.162 -t "takt/device/cost-2-2408" \
-  -m '{"event":"takt_critical","message":"Atraso crítico","id":"3","timestamp":1234567892.0,"command":3}'
+  -m '{"event":"takt_critical","message":"Atraso crítico","id":"3","timestamp":1234567892.0,"takt_count":3}'
 
 # Desligar tudo
 mosquitto_pub -h 10.110.21.162 -t "takt/device/cost-2-2408" \
-  -m '{"event":"reset","message":"Reset","id":"4","timestamp":1234567893.0,"command":0}'
+  -m '{"event":"reset","message":"Reset","id":"4","timestamp":1234567893.0,"takt_count":0}'
 ```
 
 ## 🔍 Troubleshooting
@@ -484,9 +474,9 @@ mosquitto_pub -h 10.110.21.162 -t "takt/device/cost-2-2408" \
 
 ### LEDs não acendem
 
-1. Verifique polaridade (lógica invertida: LOW=ligado)
-2. Confirme resistores de 220Ω
-3. Teste pinos individualmente com código simples
+1. Verifique alimentação e GND comum da fita/anel WS2811
+2. Confirme ligação do pino de dados no GPIO 4
+3. Teste a fita com um exemplo simples de FastLED
 
 ### Buzzer não toca
 
