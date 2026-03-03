@@ -150,7 +150,7 @@ Arquivos:
 
 ## TASK 5
 name: Validar fluxo completo OTA via MQTT
-conclude: false
+conclude: true
 
 ### Objetivo
 Garantir funcionamento integrado.
