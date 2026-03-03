@@ -226,14 +226,33 @@ void setup()
   }
 
   setDefaultConfig(deviceConfig);
-  if (loadConfig(deviceConfig))
+  const String currentFirmwareSignature = String(__DATE__) + " " + String(__TIME__);
+  bool shouldResetConfig = hasFirmwareSignatureChanged(currentFirmwareSignature);
+
+  if (shouldResetConfig)
+  {
+    Serial.println("Nova firmware detectada. Resetando configuracao para defaults.");
+    if (!saveConfig(deviceConfig))
+    {
+      Serial.println("Falha ao salvar defaults apos troca de firmware.");
+    }
+
+    if (!saveFirmwareSignature(currentFirmwareSignature))
+    {
+      Serial.println("Falha ao persistir assinatura da firmware.");
+    }
+  }
+  else if (loadConfig(deviceConfig))
   {
     Serial.println("Configuração carregada do LittleFS");
   }
   else
   {
     Serial.println("Sem configuração salva, usando defaults");
-    saveConfig(deviceConfig);
+    if (saveConfig(deviceConfig))
+    {
+      saveFirmwareSignature(currentFirmwareSignature);
+    }
   }
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);

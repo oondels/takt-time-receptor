@@ -145,6 +145,18 @@ namespace
     return otaServer.header(OTA_HEADER_KEY) == deviceConfig->otaKey;
   }
 
+  bool isMultipartRequest()
+  {
+    if (!otaServer.hasHeader("Content-Type"))
+    {
+      return false;
+    }
+
+    String contentType = otaServer.header("Content-Type");
+    contentType.toLowerCase();
+    return contentType.startsWith("multipart/");
+  }
+
   void sendOtaErrorResponse()
   {
     if (!otaState.hasError)
@@ -163,63 +175,124 @@ namespace
     otaServer.send(otaState.httpCode, "application/json", response);
   }
 
+  void beginOtaUpdateRequest()
+  {
+    resetOtaState();
+    otaState.started = true;
+    otaState.startedAtMs = millis();
+    captureRemoteIp();
+    persistOtaStatus("in_progress");
+
+    if (deviceConfig == nullptr)
+    {
+      setOtaError(500, "server_error", "device config unavailable");
+      return;
+    }
+
+    if (!isOtaKeyConfigured())
+    {
+      setOtaError(403, "ota_disabled", "ota_key is empty");
+      return;
+    }
+
+    if (!isAuthorizedRequest())
+    {
+      setOtaError(401, "unauthorized", "invalid X-OTA-Key");
+      return;
+    }
+
+    const bool hasContentLength = otaServer.hasHeader("Content-Length");
+    if (hasContentLength)
+    {
+      int contentLength = otaServer.header("Content-Length").toInt();
+      if (contentLength <= 0)
+      {
+        setOtaError(400, "invalid_content_length", "Content-Length must be greater than zero");
+        return;
+      }
+
+      if (!Update.begin(static_cast<size_t>(contentLength)))
+      {
+        setOtaError(500, "update_begin_failed", Update.errorString());
+        return;
+      }
+    }
+    else
+    {
+      if (!Update.begin(UPDATE_SIZE_UNKNOWN))
+      {
+        setOtaError(500, "update_begin_failed", Update.errorString());
+        return;
+      }
+    }
+
+    otaState.uploadAccepted = true;
+    otaState.updateBegun = true;
+  }
+
+  void processOtaChunk(uint8_t *buffer, size_t size)
+  {
+    size_t written = Update.write(buffer, size);
+    if (written != size)
+    {
+      setOtaError(500, "update_write_failed", Update.errorString());
+      return;
+    }
+
+    otaState.bytesWritten += written;
+  }
+
+  void finalizeOtaUpdate()
+  {
+    if (!Update.end(true))
+    {
+      setOtaError(500, "update_end_failed", Update.errorString());
+      return;
+    }
+
+    otaState.updateCompleted = true;
+  }
+
   void handleOtaUpload()
   {
-    HTTPUpload &upload = otaServer.upload();
-
-    if (upload.status == UPLOAD_FILE_START)
+    if (isMultipartRequest())
     {
-      resetOtaState();
-      otaState.started = true;
-      otaState.startedAtMs = millis();
-      captureRemoteIp();
-      persistOtaStatus("in_progress");
+      HTTPUpload &upload = otaServer.upload();
 
-      if (deviceConfig == nullptr)
+      if (upload.status == UPLOAD_FILE_START)
       {
-        setOtaError(500, "server_error", "device config unavailable");
+        beginOtaUpdateRequest();
         return;
       }
 
-      if (!isOtaKeyConfigured())
+      if (!otaState.uploadAccepted || otaState.hasError)
       {
-        setOtaError(403, "ota_disabled", "ota_key is empty");
         return;
       }
 
-      if (!isAuthorizedRequest())
+      if (upload.status == UPLOAD_FILE_WRITE)
       {
-        setOtaError(401, "unauthorized", "invalid X-OTA-Key");
+        processOtaChunk(upload.buf, upload.currentSize);
         return;
       }
 
-      const bool hasContentLength = otaServer.hasHeader("Content-Length");
-      if (hasContentLength)
+      if (upload.status == UPLOAD_FILE_END)
       {
-        int contentLength = otaServer.header("Content-Length").toInt();
-        if (contentLength <= 0)
-        {
-          setOtaError(400, "invalid_content_length", "Content-Length must be greater than zero");
-          return;
-        }
-
-        if (!Update.begin(static_cast<size_t>(contentLength)))
-        {
-          setOtaError(500, "update_begin_failed", Update.errorString());
-          return;
-        }
-      }
-      else
-      {
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN))
-        {
-          setOtaError(500, "update_begin_failed", Update.errorString());
-          return;
-        }
+        finalizeOtaUpdate();
+        return;
       }
 
-      otaState.uploadAccepted = true;
-      otaState.updateBegun = true;
+      if (upload.status == UPLOAD_FILE_ABORTED)
+      {
+        setOtaError(400, "upload_aborted", "upload aborted by client");
+      }
+      return;
+    }
+
+    HTTPRaw &raw = otaServer.raw();
+    if (raw.status == RAW_START)
+    {
+      beginOtaUpdateRequest();
       return;
     }
 
@@ -228,32 +301,19 @@ namespace
       return;
     }
 
-    if (upload.status == UPLOAD_FILE_WRITE)
+    if (raw.status == RAW_WRITE)
     {
-      size_t written = Update.write(upload.buf, upload.currentSize);
-      if (written != upload.currentSize)
-      {
-        setOtaError(500, "update_write_failed", Update.errorString());
-        return;
-      }
-
-      otaState.bytesWritten += written;
+      processOtaChunk(raw.buf, raw.currentSize);
       return;
     }
 
-    if (upload.status == UPLOAD_FILE_END)
+    if (raw.status == RAW_END)
     {
-      if (!Update.end(true))
-      {
-        setOtaError(500, "update_end_failed", Update.errorString());
-        return;
-      }
-
-      otaState.updateCompleted = true;
+      finalizeOtaUpdate();
       return;
     }
 
-    if (upload.status == UPLOAD_FILE_ABORTED)
+    if (raw.status == RAW_ABORTED)
     {
       setOtaError(400, "upload_aborted", "upload aborted by client");
     }
