@@ -117,61 +117,84 @@ void onMqttMessage(char *topic, byte *payload, unsigned int length)
   if (mqttClient.comandoRecebido.event == "device_config" ||
       mqttClient.comandoRecebido.message == "device_config" ||
       mqttClient.comandoRecebido.message == "update_config" ||
-      mqttClient.comandoRecebido.message == "update_device_id")
+      mqttClient.comandoRecebido.message == "update_device_id" ||
+      mqttClient.comandoRecebido.message == "update_mqtt")
   {
+    (void)topic;
+    (void)payload;
+    (void)length;
+
+    DeviceConfig previousConfig = deviceConfig;
     DeviceConfig newConfig = deviceConfig;
     bool changed = false;
+    bool hasTaktCount = mqttClient.mqttMessage.containsKey("takt_count");
     Serial.println("Comando de configuração recebido");
 
-    if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed) && changed)
+    if (applyConfigFromJson(newConfig, mqttClient.mqttMessage, changed))
     {
-      if (saveConfig(newConfig))
+      if (changed)
       {
-        // Aplicar takt_count se presente
-        if (mqttClient.mqttMessage.containsKey("takt_count"))
-        {
-          int taktCommand = deviceConfig.taktCount;
-          Serial.print("Aplicando takt_count da configuração: ");
-          Serial.println(taktCommand);
-          processarComando(taktCommand);
-          return;
-        }
-
-        bool isDeviceIdUpdate = mqttClient.comandoRecebido.message == "update_device_id";
-        bool isUpdateMqtt = mqttClient.comandoRecebido.message == "update_mqtt";
-
-        // Atualização de conexão broker mqtt
-        if (isDeviceIdUpdate || isUpdateMqtt)
+        if (saveConfig(newConfig))
         {
           deviceConfig = newConfig;
-          MQTT_TOPIC = buildMqttTopic(deviceConfig);
-          mqttClient.configure(
-              deviceConfig.mqttServer.c_str(),
-              deviceConfig.mqttPort,
-              deviceConfig.mqttUser.c_str(),
-              deviceConfig.mqttPass.c_str(),
-              MQTT_TOPIC.c_str(),
-              deviceConfig.deviceId.c_str());
-          mqttClient.begin();
-          mqttClient.disconnect();
-          mqttClient.reconnect();
 
-          String oldDeviceId = deviceConfig.deviceId;
-          String newDeviceId = newConfig.deviceId;
-          String requestId = mqttClient.mqttMessage["request_id"] | "";
+          bool mqttConnectionChanged =
+              previousConfig.deviceId != deviceConfig.deviceId ||
+              previousConfig.mqttServer != deviceConfig.mqttServer ||
+              previousConfig.mqttPort != deviceConfig.mqttPort ||
+              previousConfig.mqttUser != deviceConfig.mqttUser ||
+              previousConfig.mqttPass != deviceConfig.mqttPass;
 
-          pendingOldDeviceId = oldDeviceId;
-          pendingNewDeviceId = newDeviceId;
-          pendingRequestId = requestId;
-          pendingDeviceIdAck = true;
-
-          if (!publishDeviceIdUpdateAck())
+          if (mqttConnectionChanged)
           {
-            Serial.println("ACK pendente: será reenviado no loop quando reconectar.");
-          }
-        }
+            MQTT_TOPIC = buildMqttTopic(deviceConfig);
+            mqttClient.configure(
+                deviceConfig.mqttServer.c_str(),
+                deviceConfig.mqttPort,
+                deviceConfig.mqttUser.c_str(),
+                deviceConfig.mqttPass.c_str(),
+                MQTT_TOPIC.c_str(),
+                deviceConfig.deviceId.c_str());
+            mqttClient.begin();
+            mqttClient.disconnect();
+            mqttClient.reconnect();
 
-        Serial.println("Configuração atualizada e salva.");
+            if (mqttClient.comandoRecebido.message == "update_device_id")
+            {
+              String requestId = mqttClient.mqttMessage["request_id"] | "";
+              pendingOldDeviceId = previousConfig.deviceId;
+              pendingNewDeviceId = deviceConfig.deviceId;
+              pendingRequestId = requestId;
+              pendingDeviceIdAck = true;
+
+              if (!publishDeviceIdUpdateAck())
+              {
+                Serial.println("ACK pendente: será reenviado no loop quando reconectar.");
+              }
+            }
+          }
+
+          Serial.println("Configuração atualizada e salva.");
+        }
+        else
+        {
+          Serial.println("Falha ao salvar configuração recebida.");
+        }
+      }
+
+      if (hasTaktCount)
+      {
+        int taktCommand = mqttClient.mqttMessage["takt_count"] | -1;
+        if (taktCommand >= 0 && taktCommand <= 3)
+        {
+          Serial.print("Aplicando takt_count recebido: ");
+          Serial.println(taktCommand);
+          processarComando(taktCommand);
+        }
+        else
+        {
+          Serial.println("takt_count inválido no payload. Comando ignorado.");
+        }
       }
     }
 
