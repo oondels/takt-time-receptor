@@ -16,8 +16,8 @@ constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // WiFi & MQTT
-const char *SSID = "Ti";
-const char *PASSWORD = "gdti5s11se";
+const char *SSID = "Oendels";
+const char *PASSWORD = "virx2123";
 WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
 
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
@@ -370,6 +370,7 @@ void loop()
     else
     {
       Serial.println("Falha na OTA agendada. Sistema segue em execucao.");
+      Serial.println("Consulte GET /ota/status para detalhes do erro persistido.");
     }
   }
 

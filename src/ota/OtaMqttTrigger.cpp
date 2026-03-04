@@ -76,9 +76,13 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
   bool success = false;
   bool updateBegun = false;
 
+  Serial.print("[OTA MQTT] Iniciando download: ");
+  Serial.println(updateUrl);
+
   if (updateUrl.length() == 0 || !hasValidHttpPrefix(updateUrl))
   {
     error = "invalid_update_url";
+    Serial.println("[OTA MQTT] Erro: update_url inválida.");
     persistOtaStatus(startedAtMs, millis(), bytesReceived, "fail", error, updateUrl);
     return false;
   }
@@ -89,6 +93,7 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
   if (!http.begin(wifiClient, updateUrl))
   {
     error = "http_begin_failed";
+    Serial.println("[OTA MQTT] Erro: http.begin() falhou.");
     persistOtaStatus(startedAtMs, millis(), bytesReceived, "fail", error, updateUrl);
     return false;
   }
@@ -96,13 +101,25 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK)
   {
-    error = String("http_status_") + String(httpCode);
+    if (httpCode < 0)
+    {
+      error = String("http_get_failed:") + http.errorToString(httpCode);
+    }
+    else
+    {
+      error = String("http_status_") + String(httpCode);
+    }
+    Serial.print("[OTA MQTT] Erro HTTP GET: ");
+    Serial.println(error);
     http.end();
     persistOtaStatus(startedAtMs, millis(), bytesReceived, "fail", error, updateUrl);
     return false;
   }
 
   int contentLength = http.getSize();
+  Serial.print("[OTA MQTT] HTTP 200 recebido. Content-Length: ");
+  Serial.println(contentLength);
+
   if (contentLength > 0)
   {
     updateBegun = Update.begin(static_cast<size_t>(contentLength));
@@ -115,6 +132,8 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
   if (!updateBegun)
   {
     error = String("update_begin_failed:") + Update.errorString();
+    Serial.print("[OTA MQTT] Erro no Update.begin(): ");
+    Serial.println(error);
     http.end();
     persistOtaStatus(startedAtMs, millis(), bytesReceived, "fail", error, updateUrl);
     return false;
@@ -132,6 +151,7 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
       if (millis() - lastDataAtMs > DOWNLOAD_IDLE_TIMEOUT_MS)
       {
         error = "download_timeout";
+        Serial.println("[OTA MQTT] Erro: timeout sem dados no stream.");
         break;
       }
 
@@ -149,6 +169,7 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
     if (bytesRead <= 0)
     {
       error = "stream_read_failed";
+      Serial.println("[OTA MQTT] Erro: leitura do stream falhou.");
       break;
     }
 
@@ -157,6 +178,8 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
     if (written != static_cast<size_t>(bytesRead))
     {
       error = String("update_write_failed:") + Update.errorString();
+      Serial.print("[OTA MQTT] Erro no Update.write(): ");
+      Serial.println(error);
       break;
     }
 
@@ -166,6 +189,7 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
   if (error.length() == 0 && contentLength >= 0 && bytesReceived != static_cast<size_t>(contentLength))
   {
     error = "download_incomplete";
+    Serial.println("[OTA MQTT] Erro: download incompleto.");
   }
 
   if (error.length() == 0)
@@ -173,10 +197,14 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
     if (!Update.end(true))
     {
       error = String("update_end_failed:") + Update.errorString();
+      Serial.print("[OTA MQTT] Erro no Update.end(): ");
+      Serial.println(error);
     }
     else
     {
       success = true;
+      Serial.print("[OTA MQTT] Firmware recebida com sucesso. Bytes: ");
+      Serial.println(bytesReceived);
     }
   }
 
@@ -193,6 +221,12 @@ bool triggerOtaFromUrl(DeviceConfig &cfg, const String &updateUrl)
       success ? "ok" : "fail",
       error,
       updateUrl);
+
+  if (!success)
+  {
+    Serial.print("[OTA MQTT] Falha final: ");
+    Serial.println(error);
+  }
 
   return success;
 }
