@@ -370,6 +370,7 @@ void loop()
     else
     {
       Serial.println("Falha na OTA agendada. Sistema segue em execucao.");
+      Serial.println("Consulte GET /ota/status para detalhes do erro persistido.");
     }
   }
 

@@ -8,8 +8,8 @@ CORE OBJECTIVE
 
 Your job is to:
 
-1. Read Tasks.md
-1.1 Read PROGRESS.md for context on completed tasks, current state and knowledge from previous iterations.
+1. Read TASKS.md
+1.1 Read PROGRESS.md for context on completed tasks, current state and knowledge from 
 2. Find the FIRST task where: conclude = false
 3. Execute ONLY that task
 4. Mark it as completed (conclude = true)
@@ -24,7 +24,8 @@ EXECUTION LOOP
 
 At the beginning of EACH iteration:
 
-1. Read Tasks.md
+1. Read TASKS.md
+1.1 Read PROGRESS.md for context on completed tasks, current state and knowledge from 
 2. Identify the first task with:
    conclude = false
 3. If no such task exists:
@@ -49,7 +50,7 @@ TASK COMPLETION PROTOCOL
 
 When the task is successfully implemented and validated:
 
-1. Update Tasks.md:
+1. Update TASKS.md:
    - Change conclude = false → conclude = true
    - Do NOT modify other tasks
    - Do NOT reorder tasks
@@ -118,4 +119,4 @@ OPERATE NOW
 ========================
 
 Start loop execution.
-Read Tasks.md and begin.
+Read TASKS.md and begin.

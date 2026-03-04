@@ -14,6 +14,7 @@ Sistema embarcado ESP32 para monitoramento visual e sonoro de takt time em ambie
 - [Estrutura do Projeto](#estrutura-do-projeto)
 - [Compilação e Upload](#compilação-e-upload)
 - [OTA via HTTP](#ota-via-http)
+- [Servidor de Firmware (Node.js)](#servidor-de-firmware-nodejs)
 - [Uso](#uso)
 
 ## Visão Geral
@@ -26,12 +27,16 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 2. Estabelece conexão com broker MQTT
 3. Escuta comandos no tópico `takt/device/{DEVICE_ID}`
 4. Processa comandos JSON e ativa níveis de sinalização
-5. Desativa automaticamente após tempo configurado no nível máximo
+5. Detecta `update_takt_time` e agenda OTA sem bloquear o callback MQTT
+6. Executa OTA no `loop()` principal e reinicia apenas em caso de sucesso
 
 ## Características
 
 - **Conexão WiFi**: Auto-reconexão automática em caso de perda de sinal
 - **Comunicação MQTT**: Processamento automático de mensagens JSON
+- **OTA assíncrona via MQTT**: Trigger por `update_takt_time` com execução fora do callback
+- **Cliente OTA HTTP**: Download de firmware por URL (`http://` ou `https://`) com streaming
+- **Persistência de Status OTA**: Resultado salvo em `/ota/last.json`
 - **Sinalização Progressiva**: 4 níveis de alerta (0-3)
 - **Validação de Dependências**: Garante ativação sequencial dos LEDs
 - **Auto-desligamento**: Timer configurável para nível crítico
@@ -246,6 +251,32 @@ takt/device/{DEVICE_ID}
 }
 ```
 
+### Trigger OTA remota (`update_takt_time`)
+
+Mensagem de OTA aceita quando:
+- `event == "update_takt_time"` **ou**
+- `message == "update_takt_time"`
+
+Campos esperados:
+- `update_url` (obrigatório): deve iniciar com `http://` ou `https://`
+- `timestamp` (opcional)
+
+Exemplo:
+
+```json
+{
+  "event": "update_takt_time",
+  "update_url": "http://192.168.1.20:2399/update-takttime",
+  "timestamp": 1730000000
+}
+```
+
+Comportamento:
+- O callback MQTT apenas agenda a OTA (`otaPending`)
+- A execução ocorre no `loop()` principal (`single-flight`, sem disparos simultâneos)
+- Em sucesso: grava status e reinicia o ESP32
+- Em falha: grava status `fail` e mantém o sistema em execução
+
 ## Níveis de Sinalização
 
 ### Tabela de Comandos
@@ -302,12 +333,18 @@ takt-time-receptor/
 │   │   └── ConfigStorage.cpp       # Load/save de /config.json
 │   ├── ota/
 │   │   ├── OtaServer.h             # Endpoints HTTP de OTA
-│   │   └── OtaServer.cpp           # Upload OTA e status
+│   │   ├── OtaServer.cpp           # Upload OTA e status
+│   │   ├── OtaMqttTrigger.h        # Trigger OTA por URL recebida via MQTT
+│   │   └── OtaMqttTrigger.cpp      # Cliente HTTP OTA + persistência /ota/last.json
 │   └── sinalizer/
 │       ├── Signalizer.h            # Header dispositivo individual
 │       ├── Signalizer.cpp          # Implementação dispositivo
 │       ├── SignalizerController.h  # Header controlador
 │       └── SignalizerController.cpp # Implementação controlador
+├── tools/
+│   └── ota-server/
+│       ├── server.js               # Servidor firmware.bin (GET /update-takttime)
+│       └── package.json
 ├── platformio.ini                  # Configuração PlatformIO
 └── README.md                       # Este arquivo
 ```
@@ -334,7 +371,31 @@ monitor_speed = 115200
 
 ## OTA via HTTP
 
-### Upload de firmware
+### Fluxos OTA (Push vs Pull)
+
+```text
+                     ┌──────────────────────────────┐
+                     │        Broker MQTT           │
+                     └──────────────┬───────────────┘
+                                    │ update_takt_time + update_url
+                                    ▼
+┌──────────────────────┐   agenda OTA   ┌──────────────────────────┐
+│      ESP32 (MQTT)    ├───────────────►│ loop() chama OTA client  │
+└──────────────────────┘                └──────────────┬───────────┘
+                                                       │ HTTP GET update_url
+                                                       ▼
+                                            ┌──────────────────────────┐
+                                            │ Servidor firmware.bin    │
+                                            │ (tools/ota-server)       │
+                                            └──────────────────────────┘
+
+Fluxo Push:
+Cliente HTTP ──POST /ota (+ X-OTA-Key)──► ESP32 (OtaServer)
+```
+
+### OTA Push (HTTP direto para ESP32)
+
+#### Upload de firmware
 
 Endpoint: `POST /ota`  
 Header obrigatório: `X-OTA-Key: <ota_key>`
@@ -353,7 +414,7 @@ Resposta de sucesso esperada:
 {"ok":true,"message":"updated","bytes_written":123456}
 ```
 
-### Consultar status da última tentativa
+#### Consultar status da última tentativa
 
 Endpoint: `GET /ota/status`
 
@@ -375,6 +436,22 @@ Exemplo de retorno:
 
 Em falhas, o JSON também pode conter `update_error_code` e `update_error_str`.
 
+### OTA Pull (MQTT + URL de firmware)
+
+Trigger MQTT aceito:
+- `event == "update_takt_time"` ou `message == "update_takt_time"`
+- `update_url` obrigatório (`http://` ou `https://`)
+
+Fluxo de execução:
+- Callback MQTT apenas agenda (`otaPending`)
+- Execução ocorre no `loop()` (`triggerOtaFromUrl`)
+- Sem execução concorrente (`single-flight`)
+- Reinício apenas em sucesso
+
+Quando a OTA é disparada por MQTT, o status em `/ota/last.json` inclui:
+- `error`
+- `update_url`
+
 ### Comandos
 
 ```bash
@@ -389,6 +466,37 @@ pio device monitor
 
 # Compilar + Upload + Monitor
 pio run --target upload && pio device monitor
+```
+
+### Trigger OTA Pull via MQTT (exemplo)
+
+```bash
+mosquitto_pub -h <broker-ip> -t "takt/device/<DEVICE_ID>" \
+  -m '{"event":"update_takt_time","update_url":"http://<host-ip>:2399/update-takttime","timestamp":1730000000}'
+```
+
+## Servidor de Firmware (Node.js)
+
+Servidor minimalista em `tools/ota-server` para entregar `firmware.bin`.
+
+Comportamento:
+- `GET /update-takttime`
+- `Content-Type: application/octet-stream`
+- `Content-Length` calculado por `fs.stat`
+- `PORT` via `process.env.PORT` (default `2399`)
+- `FIRMWARE_PATH` via `process.env.FIRMWARE_PATH` (default `./firmware.bin`)
+
+### Executar
+
+```bash
+cd tools/ota-server
+PORT=2399 FIRMWARE_PATH="../../.pio/build/esp32doit-devkit-v1/firmware.bin" node server.js
+```
+
+### Testar download
+
+```bash
+curl -v http://localhost:2399/update-takttime -o firmware.bin
 ```
 
 ## Uso

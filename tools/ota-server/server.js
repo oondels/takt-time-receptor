@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = Number(process.env.PORT || 2399);
+const PORT = Number(process.env.PORT || 9923);
 const firmwarePath = path.resolve(process.env.FIRMWARE_PATH || "./firmware.bin");
 
 function sendNotFound(res)
@@ -21,10 +21,13 @@ function sendMethodNotAllowed(res)
 
 function sendFirmware(res)
 {
+  console.log('Solicitacao de update');
   fs.stat(firmwarePath, (statErr, stats) =>
   {
     if (statErr || !stats.isFile())
     {
+      console.log("Erro ao enviar arquivo: ", statErr);
+      
       res.statusCode = 404;
       res.setHeader("Content-Type", "application/json");
       res.end(JSON.stringify({ ok: false, error: "firmware_not_found" }));
@@ -52,6 +55,13 @@ function sendFirmware(res)
 
 const server = http.createServer((req, res) =>
 {
+  if (req.url === "/") {
+    res.statusCode = 200;
+    res.setHeader("Content-Type", "application/json");
+    res.end(JSON.stringify({ ok: true, message: "OTA firmware server is running" }));
+    return;
+  }
+
   if (req.url !== "/update-takttime")
   {
     sendNotFound(res);
