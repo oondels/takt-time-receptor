@@ -8,6 +8,8 @@
 #include "config/ConfigStorage.h"
 #include "sinalizer/Signalizer.h"
 #include "sinalizer/SignalizerController.h"
+#include "ota/OtaMqttTrigger.h"
+#include "ota/OtaServer.h"
 
 // Pinos
 constexpr int LEDS = 4;
@@ -37,6 +39,16 @@ bool pendingDeviceIdAck = false;
 String pendingOldDeviceId = "";
 String pendingNewDeviceId = "";
 String pendingRequestId = "";
+bool otaPending = false;
+bool otaInProgress = false;
+String pendingUpdateUrl = "";
+unsigned long pendingUpdateTimestamp = 0;
+
+bool isValidHttpUrl(const String &url)
+{
+  return url.length() > 0 &&
+         (url.startsWith("http://") || url.startsWith("https://"));
+}
 
 bool publishDeviceIdUpdateAck()
 {
@@ -114,6 +126,45 @@ void processarComando(int comando)
 // Callback para processar mensagens MQTT com JSON
 void onMqttMessage(char *topic, byte *payload, unsigned int length)
 {
+  if (mqttClient.comandoRecebido.event == "update_takt_time" ||
+      mqttClient.comandoRecebido.message == "update_takt_time")
+  {
+    (void)topic;
+    (void)payload;
+    (void)length;
+
+    String updateUrl = mqttClient.mqttMessage["update_url"] | "";
+    if (!isValidHttpUrl(updateUrl))
+    {
+      Serial.println("Erro: update_takt_time sem update_url valido. OTA nao agendada.");
+      return;
+    }
+
+    if (otaInProgress)
+    {
+      Serial.println("OTA em andamento. Novo update_takt_time ignorado.");
+      return;
+    }
+
+    if (otaPending && pendingUpdateUrl == updateUrl)
+    {
+      Serial.println("OTA ja pendente para esta URL. Comando duplicado ignorado.");
+      return;
+    }
+
+    pendingUpdateUrl = updateUrl;
+    pendingUpdateTimestamp = mqttClient.mqttMessage["timestamp"] | millis();
+    otaPending = true;
+
+    Serial.println("OTA pendente agendada via MQTT.");
+    Serial.print("update_url: ");
+    Serial.println(pendingUpdateUrl);
+    Serial.print("timestamp: ");
+    Serial.println(pendingUpdateTimestamp);
+    Serial.println("==========================\n");
+    return;
+  }
+
   if (mqttClient.comandoRecebido.event == "device_config" ||
       mqttClient.comandoRecebido.message == "device_config" ||
       mqttClient.comandoRecebido.message == "update_config" ||
@@ -225,14 +276,33 @@ void setup()
   }
 
   setDefaultConfig(deviceConfig);
-  if (loadConfig(deviceConfig))
+  const String currentFirmwareSignature = String(__DATE__) + " " + String(__TIME__);
+  bool shouldResetConfig = hasFirmwareSignatureChanged(currentFirmwareSignature);
+
+  if (shouldResetConfig)
+  {
+    Serial.println("Nova firmware detectada. Resetando configuracao para defaults.");
+    if (!saveConfig(deviceConfig))
+    {
+      Serial.println("Falha ao salvar defaults apos troca de firmware.");
+    }
+
+    if (!saveFirmwareSignature(currentFirmwareSignature))
+    {
+      Serial.println("Falha ao persistir assinatura da firmware.");
+    }
+  }
+  else if (loadConfig(deviceConfig))
   {
     Serial.println("Configuração carregada do LittleFS");
   }
   else
   {
     Serial.println("Sem configuração salva, usando defaults");
-    saveConfig(deviceConfig);
+    if (saveConfig(deviceConfig))
+    {
+      saveFirmwareSignature(currentFirmwareSignature);
+    }
   }
 
   MQTT_TOPIC = buildMqttTopic(deviceConfig);
@@ -249,6 +319,8 @@ void setup()
   Serial.println("Conectando ao WiFi...");
   wifiClient.begin();
 
+  beginOtaServer(deviceConfig);
+
   mqttClient.begin();
   mqttClient.setCallback(onMqttMessage);
 
@@ -257,6 +329,8 @@ void setup()
 
 void loop()
 {
+  loopOtaServer();
+
   // Verificar conexão WiFi
   bool wifiConnected = wifiClient.loop();
   if (!wifiConnected)
@@ -271,6 +345,33 @@ void loop()
   if (pendingDeviceIdAck)
   {
     publishDeviceIdUpdateAck();
+  }
+
+  if (otaPending && !otaInProgress)
+  {
+    otaInProgress = true;
+    String updateUrl = pendingUpdateUrl;
+    otaPending = false;
+    pendingUpdateUrl = "";
+    pendingUpdateTimestamp = 0;
+
+    Serial.print("Iniciando OTA agendada via URL: ");
+    Serial.println(updateUrl);
+
+    bool otaResult = triggerOtaFromUrl(deviceConfig, updateUrl);
+    otaInProgress = false;
+
+    if (otaResult)
+    {
+      Serial.println("OTA concluida com sucesso. Reiniciando dispositivo.");
+      delay(200);
+      ESP.restart();
+    }
+    else
+    {
+      Serial.println("Falha na OTA agendada. Sistema segue em execucao.");
+      Serial.println("Consulte GET /ota/status para detalhes do erro persistido.");
+    }
   }
 
   if (mqttClient.newCommand)
