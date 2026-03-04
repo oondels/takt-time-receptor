@@ -124,20 +124,27 @@ GND     ──────────────── GND comum
 
 ### 1. Credenciais WiFi
 
-```cpp
-const char *SSID = "";
-const char *PASSWORD = "";
+Crie o arquivo `.env` na raiz do projeto (o arquivo real é ignorado pelo Git):
+
+```bash
+cp .env.example .env
 ```
 
 ### 2. Configuração MQTT
 
-```cpp
-const char *MQTT_SERVER = "IP_DO_BROKER";
-const int MQTT_PORT = 1883;
-const char *MQTT_USER = "usuario";
-const char *MQTT_PASS = "senha";
-const char *DEVICE_ID = "seu-device-id";
+Preencha as variáveis abaixo no `.env`:
+
+```env
+WIFI_SSID=SUA_REDE_WIFI
+WIFI_PASSWORD=SUA_SENHA
+DEFAULT_MQTT_USER=usuario
+DEFAULT_MQTT_PASS=senha
+DEFAULT_MQTT_SERVER=IP_DO_BROKER
+DEFAULT_MQTT_PORT=1883
+DEFAULT_OTA_KEY=sua-chave-ota
 ```
+
+Esses valores são carregados no build (`pio run`) via `extra_scripts` do PlatformIO e viram defaults de firmware.
 
 ### 3. Persistência e Config Remota
 

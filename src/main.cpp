@@ -10,15 +10,14 @@
 #include "sinalizer/SignalizerController.h"
 #include "ota/OtaMqttTrigger.h"
 #include "ota/OtaServer.h"
+#include "BuildEnv.h"
 
 // Pinos
 constexpr int LEDS = 4;
 constexpr int BUZZER = 14;
 
 // WiFi & MQTT
-const char *SSID = "";
-const char *PASSWORD = "";
-WifiClient wifiClient(SSID, PASSWORD, 20000); // Timeout de 20 segundos
+WifiClient wifiClient(DEFAULT_WIFI_SSID, DEFAULT_WIFI_PASSWORD, 20000); // Timeout de 20 segundos
 
 DeviceConfig deviceConfig = {DEFAULT_DEVICE_ID, DEFAULT_MQTT_USER, DEFAULT_MQTT_PASS, DEFAULT_MQTT_SERVER, DEFAULT_MQTT_PORT};
 String MQTT_TOPIC = buildMqttTopic(deviceConfig);

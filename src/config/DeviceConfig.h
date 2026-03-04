@@ -1,14 +1,15 @@
 #pragma once
 
 #include <Arduino.h>
+#include "BuildEnv.h"
 
 constexpr const char *DEFAULT_DEVICE_ID = "cost-default-id";
-***REMOVED***
-***REMOVED***
-***REMOVED***
-constexpr int DEFAULT_MQTT_PORT = 1883;
+constexpr const char *DEFAULT_MQTT_USER = BUILD_DEFAULT_MQTT_USER;
+constexpr const char *DEFAULT_MQTT_PASS = BUILD_DEFAULT_MQTT_PASS;
+constexpr const char *DEFAULT_MQTT_SERVER = BUILD_DEFAULT_MQTT_SERVER;
+constexpr int DEFAULT_MQTT_PORT = BUILD_DEFAULT_MQTT_PORT;
 constexpr int DEFAULT_TAKT_COUNT = 0;
-constexpr const char *DEFAULT_OTA_KEY = "default-ota-key";
+constexpr const char *DEFAULT_OTA_KEY = BUILD_DEFAULT_OTA_KEY;
 
 struct DeviceConfig
 {
