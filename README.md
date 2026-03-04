@@ -203,7 +203,6 @@ Exemplo Teste de funcionalidade
 {
   "event": "takt_alert",
   "message": "test_takt_system",
-  "id": "3-3508",
   "timestamp": 1698412800.5,
   "takt_count": 1
 }
