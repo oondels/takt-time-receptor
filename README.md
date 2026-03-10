@@ -37,8 +37,8 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 - **OTA assíncrona via MQTT**: Trigger por `update_takt_time` com execução fora do callback
 - **Cliente OTA HTTP**: Download de firmware por URL (`http://` ou `https://`) com streaming
 - **Persistência de Status OTA**: Resultado salvo em `/ota/last.json`
-- **Sinalização Progressiva**: 4 níveis de alerta (0-3)
-- **Validação de Dependências**: Garante ativação sequencial dos LEDs
+- **Sinalização Progressiva**: 4 comandos de sinalização (`0`, `1`, `2`, `3` e teste `99`)
+- **Validação Básica**: Verificação de dependências internas do controlador (ponteiros válidos)
 - **Auto-desligamento**: Timer configurável para nível crítico
 - **Arquitetura Modular**: Separação de responsabilidades (SOLID)
 - **Logs Detalhados**: Monitoramento via Serial (115200 baud)
@@ -85,7 +85,7 @@ O **Takt Time Receptor** é um dispositivo IoT baseado em ESP32 que recebe coman
 #### 4. **SignalizerController**
 - Orquestra múltiplos Sinalizers
 - Implementa lógica de níveis progressivos
-- Valida dependências entre níveis
+- Valida dependências internas básicas do controlador
 - Auto-desligamento após duração configurável
 
 ## 🔧 Hardware
@@ -172,10 +172,12 @@ Exemplo de `/config.json`:
 ### 4. Duração do Alarme
 
 ```cpp
-// No construtor do buzzer (em milissegundos)
-Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000, 5000);
-//                                                           freq  duração
+// No código atual, a frequência do buzzer é passada no construtor
+Sinalizer buzzer("Buzzer", BUZZER, TipoSinalizador::BUZZER, 1000);
+//                                                           freq
 ```
+
+> **Observação**: no firmware atual, `activationDuration` é fixado internamente em `5000ms`.
 
 ## Protocolo MQTT
 
@@ -198,7 +200,7 @@ ex: takt/device/cost-3-3508
 }
 ```
 
-Exemplo Teste de funcionalidade
+Exemplo de teste de funcionalidade
 ```json
 {
   "event": "takt_alert",
@@ -207,6 +209,8 @@ Exemplo Teste de funcionalidade
   "takt_count": 1
 }
 ```
+
+> **Observação**: quando `message == "test_takt_system"`, o firmware executa `sequenciaCompleta()` e ignora o `takt_count` do payload.
 
 ### Campos
 
@@ -303,6 +307,11 @@ Comportamento:
 2. Nível `2`: liga LEDs WS2811 em amarelo e desliga buzzer.
 3. Nível `3`: liga LEDs WS2811 em vermelho e liga buzzer.
 
+#### Validação implementada atualmente
+
+- O controlador valida apenas se os ponteiros de LEDs e buzzer foram inicializados.
+- Não existe, no código atual, uma regra de progressão obrigatória entre os níveis `1`, `2` e `3`.
+
 #### Auto-desligamento
 
 - No **Nível 3**, após `activationDuration` (padrão: 5000ms), o sistema **desliga automaticamente** todos os dispositivos
@@ -369,9 +378,11 @@ takt-time-receptor/
 platform = espressif32
 board = esp32doit-devkit-v1
 framework = arduino
+board_build.filesystem = littlefs
 lib_deps = 
     knolleary/PubSubClient@^2.8
-    bblanchon/ArduinoJson@^6.21.3
+    bblanchon/ArduinoJson @ ^6.21.5
+    fastled/FastLED@^3.10.3
 monitor_speed = 115200
 ```
 
@@ -478,7 +489,7 @@ pio run --target upload && pio device monitor
 
 ```bash
 mosquitto_pub -h <broker-ip> -t "takt/device/<DEVICE_ID>" \
-  -m '{"event":"update_takt_time","update_url":"http://<host-ip>:2399/update-takttime","timestamp":1730000000}'
+  -m '{"event":"update_takt_time","update_url":"http://<host-ip>:9923/update-takttime","timestamp":1730000000}'
 ```
 
 ## Servidor de Firmware (Node.js)
@@ -489,20 +500,20 @@ Comportamento:
 - `GET /update-takttime`
 - `Content-Type: application/octet-stream`
 - `Content-Length` calculado por `fs.stat`
-- `PORT` via `process.env.PORT` (default `2399`)
+- `PORT` via `process.env.PORT` (default `9923`)
 - `FIRMWARE_PATH` via `process.env.FIRMWARE_PATH` (default `./firmware.bin`)
 
 ### Executar
 
 ```bash
 cd tools/ota-server
-PORT=2399 FIRMWARE_PATH="../../.pio/build/esp32doit-devkit-v1/firmware.bin" node server.js
+PORT=9923 FIRMWARE_PATH="../../.pio/build/esp32doit-devkit-v1/firmware.bin" node server.js
 ```
 
 ### Testar download
 
 ```bash
-curl -v http://localhost:2399/update-takttime -o firmware.bin
+curl -v http://localhost:9923/update-takttime -o firmware.bin
 ```
 
 ## Uso
